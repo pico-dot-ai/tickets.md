@@ -31,6 +31,21 @@ function Card({
   );
 }
 
+function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="currentColor"
+      {...props}
+    >
+      <path d="M12 .5C5.65.5.5 5.65.5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.53-1.33-1.29-1.69-1.29-1.69-1.06-.73.08-.72.08-.72 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.26 3.38.96.1-.76.41-1.27.74-1.56-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 2.9-.39c.98 0 1.97.13 2.9.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.8 1.18 1.83 1.18 3.09 0 4.42-2.68 5.39-5.23 5.68.43.37.81 1.11.81 2.24 0 1.62-.02 2.93-.02 3.33 0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z" />
+    </svg>
+  );
+}
+
 export default function HomePage() {
   return (
     <div className="bg">
@@ -38,11 +53,11 @@ export default function HomePage() {
         <div className="container headerInner">
           <div className="brand">
             <div className="brandMark" aria-hidden="true">
-              T
+              <img src="/favicon.svg" alt="" className="brandMarkImg" />
             </div>
             <div className="brandText">
-              <div className="brandName">Tickets.md</div>
-              <div className="brandTag">Open-source, repo-native ticketing</div>
+              <div className="brandName">TICKETS.md</div>
+              <div className="brandTag">Agent native in-repo ticketing</div>
             </div>
           </div>
 
@@ -57,7 +72,8 @@ export default function HomePage() {
               Collaborate
             </a>
             <a className="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">
-              GitHub
+              <GitHubIcon className="ctaIcon" />
+              View on GitHub
             </a>
           </nav>
         </div>
@@ -113,7 +129,7 @@ export default function HomePage() {
         <section className="section" id="goals">
           <h2 className="h2">Goals</h2>
           <p className="p">
-            Tickets.md is intentionally small: a proposed format plus a single
+            TICKETS.md is intentionally small: a proposed format plus a single
             repo-local interface for automation. The goal is to make collaboration
             between people and agents predictable, auditable, and easy to merge.
           </p>
@@ -147,7 +163,7 @@ export default function HomePage() {
           <div className="callout mt14">
             <div className="calloutTitle">Non-goals (by design)</div>
             <div className="calloutBody">
-              Tickets.md is not trying to be a full project management suite, a required
+              TICKETS.md is not trying to be a full project management suite, a required
               replacement for GitHub Issues, or a hosted service. The focus is a durable
               in-repo format and an interface agents can reliably use.
             </div>
@@ -183,7 +199,7 @@ export default function HomePage() {
               <div className="calloutBody">
                 This project is open source and welcomes contributions—from docs and
                 examples to validators and integrations. If you build tooling that
-                speaks the Tickets.md format, we want to learn from it.
+                speaks the TICKETS.md format, we want to learn from it.
               </div>
               <div className="calloutLinks">
                 <ExternalLink href={GITHUB_URL}>Contribute on GitHub</ExternalLink>
@@ -214,7 +230,7 @@ export default function HomePage() {
           </div>
 
           <div className="foot">
-            <div className="footLeft">Tickets.md is a community project.</div>
+            <div className="footLeft">TICKETS.md is a community project.</div>
             <div className="footRight">
               <ExternalLink href={GITHUB_URL}>GitHub</ExternalLink>
               <span className="sep" aria-hidden="true">

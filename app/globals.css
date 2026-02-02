@@ -48,8 +48,10 @@ a {
   position: sticky;
   top: 0;
   z-index: 10;
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
   backdrop-filter: saturate(150%) blur(14px);
-  background: rgba(247, 247, 249, 0.8);
+  background: rgba(247, 247, 249, 0.72);
+  padding-top: env(safe-area-inset-top, 0);
   border-bottom: 1px solid var(--border);
 }
 
@@ -64,20 +66,21 @@ a {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 5px;
   min-width: 260px;
 }
 
 .brandMark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  background: rgba(15, 23, 42, 0.06);
-  border: 1px solid var(--border);
+}
+
+.brandMarkImg {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
 .brandName {
@@ -113,6 +116,9 @@ a {
 }
 
 .cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   padding: 9px 12px;
   border-radius: 999px;
@@ -123,6 +129,10 @@ a {
 
 .cta:hover {
   background: rgba(255, 255, 255, 0.95);
+}
+
+.ctaIcon {
+  display: block;
 }
 
 .main {
@@ -432,5 +442,40 @@ a {
   }
   .brand {
     min-width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0 14px;
+  }
+  .main {
+    padding: 28px 0 52px;
+  }
+  .headerInner {
+    padding: 10px 0;
+    gap: 10px;
+  }
+  .brand {
+    gap: 6px;
+    min-width: auto;
+  }
+  .brandMark {
+    width: 36px;
+    height: 36px;
+  }
+  .brandMarkImg {
+    width: 22px;
+    height: 22px;
+  }
+  .nav {
+    gap: 10px;
+  }
+  .cta {
+    padding: 9px 12px;
+  }
+  .hero {
+    margin: 0 6px;
+    padding: 22px;
   }
 }
