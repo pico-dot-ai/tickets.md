@@ -62,15 +62,6 @@ export default function HomePage() {
           </div>
 
           <nav className="nav" aria-label="Primary">
-            <a className="navLink" href="#goals">
-              Goals
-            </a>
-            <a className="navLink" href="#how">
-              How it works
-            </a>
-            <a className="navLink" href="#get-involved">
-              Collaborate
-            </a>
             <a className="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">
               <GitHubIcon className="ctaIcon" />
               View on GitHub
