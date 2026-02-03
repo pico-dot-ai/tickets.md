@@ -52,14 +52,25 @@ function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export default function HomePage() {
   const slides = [
-    `/.tickets/
+    {
+      title: "Repo layout",
+      footer: "Stable ticket definitions. Append-only run logs.",
+      code: `/.tickets/
   <ticket-id>/
     ticket.md
     logs/
-      <run>.jsonl`,
-    `./scripts/tickets validate
-./scripts/tickets log --ticket <id> --actor-type agent --summary "..." --machine`,
-    `Front matter (YAML)
+      <run>.jsonl`
+    },
+    {
+      title: "CLI touchpoints",
+      footer: "Validate, log runs, and keep history local.",
+      code: `./scripts/tickets validate
+./scripts/tickets log --ticket <id> --actor-type agent --summary "..." --machine`
+    },
+    {
+      title: "Ticket anatomy",
+      footer: "Keep tickets readable; move history to logs.",
+      code: `Front matter (YAML)
 ---
 id: <uuidv7>
 title: "... "
@@ -70,21 +81,28 @@ created_at: 2026-01-29T18:42:10Z
 ## Description
 ## Acceptance Criteria
 ## Verification`
+    }
   ];
 
   const [active, setActive] = useState(1); // start at first real slide (index 1 due to leading clone)
   const [manualDelay, setManualDelay] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(true);
+  const [displayIdx, setDisplayIdx] = useState(0); // index into slides
+  const [fading, setFading] = useState(false);
 
   const displaySlides = [slides[slides.length - 1], ...slides, slides[0]]; // clone last + slides + clone first
   const firstRealIndex = 1;
-  const lastRealIndex = slides.length;
+  const lastRealIndex = slides.length - 1;
+
+  const displayCount = displaySlides.length; // slides.length + 2
+  const safeActive = ((active % displayCount) + displayCount) % displayCount;
+
   const realIndex =
-    active === 0
+    safeActive === 0
       ? slides.length - 1
-      : active === displaySlides.length - 1
+      : safeActive === displayCount - 1
       ? 0
-      : active - 1;
+      : safeActive - 1;
 
   useEffect(() => {
     const baseDelay = 5200;
@@ -111,6 +129,18 @@ created_at: 2026-01-29T18:42:10Z
   };
 
   useEffect(() => {
+    setFading(true);
+    const t1 = setTimeout(() => {
+      setDisplayIdx(realIndex);
+    }, 120);
+    const t2 = setTimeout(() => setFading(false), 320);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [realIndex]);
+
+  useEffect(() => {
     if (!isTransitioning) {
       const t = setTimeout(() => setIsTransitioning(true), 20);
       return () => clearTimeout(t);
@@ -118,14 +148,14 @@ created_at: 2026-01-29T18:42:10Z
   }, [isTransitioning]);
 
   const handleTransitionEnd = () => {
-    if (active === displaySlides.length - 1) {
+    if (safeActive === displayCount - 1) {
       // at trailing clone (first slide clone) -> jump to first real
       setIsTransitioning(false);
       setActive(firstRealIndex);
-    } else if (active === 0) {
+    } else if (safeActive === 0) {
       // at leading clone (last slide clone) -> jump to last real
       setIsTransitioning(false);
-      setActive(lastRealIndex);
+      setActive(lastRealIndex + 1); // last real in displaySlides index space
     }
   };
 
@@ -183,21 +213,25 @@ created_at: 2026-01-29T18:42:10Z
                 <div className="dot dotRed" />
                 <div className="dot dotYellow" />
                 <div className="dot dotGreen" />
-                <div className="codeTitle">repo</div>
+                <div className="codeTitle">
+                  <span className={`fadeSwap${fading ? " isFading" : ""}`}>
+                    {slides[(displayIdx % slides.length + slides.length) % slides.length]?.title ?? " "}
+                  </span>
+                </div>
               </div>
               <div className="codeCarousel">
                 <div
                   className="codeTrack"
                   style={{
-                    transform: `translateX(-${active * 100}%)`,
+                    transform: `translateX(-${safeActive * 100}%)`,
                     transition: isTransitioning ? "transform 0.6s ease" : "none"
                   }}
                   onTransitionEnd={handleTransitionEnd}
                 >
-                  {displaySlides.map((text, i) => (
+                  {displaySlides.map((slide, i) => (
                     <div className="codeSlide" key={i}>
                       <pre className="code">
-                        <code>{text}</code>
+                        <code>{slide.code}</code>
                       </pre>
                     </div>
                   ))}
@@ -233,9 +267,11 @@ created_at: 2026-01-29T18:42:10Z
                   </button>
                 </div>
               </div>
-              <div className="codeFooter">
-                Stable ticket definitions. Append-only run logs.
-              </div>
+                <div className="codeFooter">
+                  <span className={`fadeSwap${fading ? " isFading" : ""}`}>
+                    {slides[(displayIdx % slides.length + slides.length) % slides.length]?.footer ?? " "}
+                  </span>
+                </div>
             </div>
           </div>
         </section>

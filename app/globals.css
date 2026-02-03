@@ -50,7 +50,15 @@ a {
   z-index: 10;
   -webkit-backdrop-filter: saturate(150%) blur(14px);
   backdrop-filter: saturate(150%) blur(14px);
-  background: rgba(247, 247, 249, 0.72);
+  background: linear-gradient(
+    to top,
+    rgba(247, 247, 249, 0.6) 0%,
+    rgba(247, 247, 249, 0.8) 50%,
+    rgba(247, 247, 249, 0.9) 70%,
+    rgba(247, 247, 249, 0.95) 80%,
+    rgba(247, 247, 249, 1) 95%,
+    rgba(247, 247, 249, 1) 100%
+  );
   padding-top: env(safe-area-inset-top, 0);
   border-bottom: 1px solid var(--border);
 }
@@ -267,6 +275,14 @@ a {
   color: rgba(255, 255, 255, 0.7);
 }
 
+.fadeSwap {
+  transition: opacity 0.25s ease;
+}
+
+.fadeSwap.isFading {
+  opacity: 0;
+}
+
 .code {
   margin: 0;
   padding: 18px 16px 16px;
@@ -290,6 +306,8 @@ a {
   flex-direction: column;
   gap: 8px;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
 }
 
 .codeTrack {
@@ -306,7 +324,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px 6px;
+  padding: 0 10px 10px;
 }
 
 .codeNavBtn {
