@@ -277,46 +277,45 @@ created_at: 2026-01-29T18:42:10Z
         </section>
 
         <section className="section" id="goals">
-          <h2 className="h2">Goals</h2>
+          <div className="goalsWrap">
+          <h2 className="h2">Ticketing for Agent Teams</h2>
           <p className="p">
-            TICKETS.md is intentionally small: a proposed format plus a single
-            repo-local interface for automation. The goal is to make collaboration
-            between people and agents predictable, auditable, and easy to merge.
+            Agentic coding tools are great at writing code, but they still have problems
+            with <strong>staying coordinated</strong> over time. As additional agents are
+            added to work on more complex tasks, having effective{" "}
+            <strong>task tracking</strong>, <strong>context availability</strong>, and a
+            clear <strong>understanding of work done</strong> becomes key.
           </p>
-
-          <div className="grid">
-            <Card title="Simple, readable tickets">
-              A Markdown-first definition that stays stable over time, with acceptance
-              criteria and verification that agents can follow.
-            </Card>
-            <Card title="Merge-friendly parallelism">
-              Per-run, append-only logs reduce conflicts and make concurrent work across
-              branches practical.
-            </Card>
-            <Card title="Offline-first">
-              Works in sandboxes and air‑gapped environments. The repo is the
-              source of truth.
-            </Card>
-            <Card title="A consistent interface">
-              A small CLI surface is the integration point for humans, IDE helpers, and
-              agent tooling.
-            </Card>
-            <Card title="Agent-safe execution">
-              Encourage explicit acceptance criteria, verification steps, and bounded
-              iteration so work converges.
-            </Card>
-            <Card title="Open and collaborative">
-              Designed to be shared, improved, and extended—without requiring a hosted
-              service to get value.
-            </Card>
-          </div>
-          <div className="callout mt14">
-            <div className="calloutTitle">Non-goals (by design)</div>
-            <div className="calloutBody">
-              TICKETS.md is not trying to be a full project management suite, a required
-              replacement for GitHub Issues, or a hosted service. The focus is a durable
-              in-repo format and an interface agents can reliably use.
-            </div>
+          <p className="p">
+            <strong>TICKETS.md</strong> aims to address common issues with agentic
+            development by providing a <strong>clear agent contract</strong>, an{" "}
+            <strong>open</strong> and{" "}
+            <strong>merge friendly in-repo ticket+context format</strong>, and{" "}
+            <strong>simple tooling</strong> for the agent to work with tickets.
+          </p>
+          <ul className="list">
+            <li>
+              The <strong>TICKETS.md</strong> file is a human readable shared contract
+              that tells the agent how to work with tickets, what the ticket format is,
+              and what tooling is available to work with tickets.
+            </li>
+            <li>
+              An agent friendly, in-repo <strong>ticket format</strong> provides a
+              common mechanism for agents to keep track of scope, detail changes made,
+              carry across context, and establish relationships between tickets. These
+              act as history for agents, in a stable and merge-friendly way.
+            </li>
+            <li>
+              A set of simple CLI tools provides a consistent way for agents and humans
+              to easily work with tickets.
+            </li>
+          </ul>
+          <p className="p">
+            We’re not aiming to replace <strong>AGENTS.md</strong>, but to provide a
+            contract with agents about how to define work, track changes, and carry over
+            context. This separation keeps the ticket system stable, discoverable, and
+            easy to integrate across different agentic environments.
+          </p>
           </div>
         </section>
 

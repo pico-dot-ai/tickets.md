@@ -370,6 +370,12 @@ a {
   padding: 26px 6px 0;
 }
 
+.goalsWrap {
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+
 .h2 {
   font-size: 20px;
   letter-spacing: -0.02em;
@@ -584,6 +590,9 @@ a {
   }
   .section {
     padding: 0 6px;
+  }
+  .goalsWrap {
+    max-width: 100%;
   }
   .h2,
   .p,
