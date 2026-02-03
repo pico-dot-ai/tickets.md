@@ -87,7 +87,7 @@ created_at: 2026-01-29T18:42:10Z
       : active - 1;
 
   useEffect(() => {
-    const baseDelay = 4000;
+    const baseDelay = 5200;
     const manualBonus = manualDelay ? 2000 : 0;
     const timer = setTimeout(() => {
       setActive((prev) => prev + 1);
