@@ -196,13 +196,13 @@ Required fields:
 - `actor_type`: `human|agent`
 - `actor_id`: string identifier (freeform)
 - `summary`: short summary string
+- `context`: `[...]` (bullets capturing the context relevant to this run; when splitting, include copied/adapted inputs from the parent)
 
 Optional structured fields (recommended):
 - `changes`: `{files: [...], commits: [...], prs: [...]}`
 - `verification`: `{commands: [...], results: "pass|fail|explain why not run"}`
 - `tickets_created`: `[...]` (ticket IDs created during this run)
 - `created_from`: string (parent ticket ID when created by splitting)
-- `context_carried_over`: `[...]` (bullets describing copied/adapted context)
 - `decisions`, `next_steps`, `blockers`: lists of strings
 
 Machine marker:
@@ -215,7 +215,7 @@ Validation strictness:
 
 Example machine-written entry:
 ```json
-{"ts":"2026-01-29T18:50:00Z","run_started":"20260129T184210.123Z","actor_type":"agent","actor_id":"codex-cli (human:@alice)","summary":"Implemented tickets validate --issues.","verification":{"commands":["./scripts/tickets validate"],"results":"pass"},"written_by":"tickets"}
+{"ts":"2026-01-29T18:50:00Z","run_started":"20260129T184210.123Z","actor_type":"agent","actor_id":"codex-cli (human:@alice)","summary":"Implemented tickets validate --issues.","context":["Inputs: AC from ticket, API schema v2"],"verification":{"commands":["./scripts/tickets validate"],"results":"pass"},"written_by":"tickets"}
 ```
 
 Merge conflict rule (rare):
@@ -275,6 +275,7 @@ Given a ticket assignment, an agent must:
 6. Log the run:
    - Write progress and outcomes to a per-run log file:
      - `/.tickets/<ticket-id>/logs/<run_started>-<run_id>.jsonl`
+     - Include a `context` field capturing the relevant context for this run (copied/adapted inputs, decisions carried in, and any subticket handoff details).
    - If the agent cannot write files, it must output the log content in its final response so a human/tool can persist it.
 
 ### What to do if the ticket is missing or invalid
@@ -300,7 +301,7 @@ Agents MUST:
 - Read the ticket before starting work.
 - Respect `assignment.mode` (do not work tickets marked `human_only`).
 - Respect hard limits in `agent_limits`; if a limit is reached, stop and write a log entry.
-- At the end of an iteration (success or failure), write a log entry that includes verification results or explains why verification was not run.
+- At the end of an iteration (success or failure), write a log entry that includes the `context` for that iteration and verification results (or why verification was not run).
 - If `max_iterations` is reached without completion, stop and log a recommendation (tighten criteria, split subtickets, or request a human decision).
 
 Humans using agentic coding tools can follow the same protocol; use `--machine` logging with `actor_type: agent` and an `actor_id` that names the tool and the human (e.g., `cursor (human:@alice)`).
@@ -312,7 +313,7 @@ If an agent discovers a ticket is too large or should be parallelized:
 1) Create subtickets with `./scripts/tickets new`.
 2) Link with `related` (and only use `dependencies`/`blocks` when there is a real ordering constraint).
 3) Log the split on the original ticket and include `tickets_created`.
-4) Ensure each new ticket is executable in isolation by copying/adapting the minimum required context into the child `ticket.md`, and writing a first child log entry that includes `created_from` and `context_carried_over` when possible.
+4) Ensure each new ticket is executable in isolation by copying/adapting the minimum required context into the child `ticket.md`, and writing a first child log entry that includes `created_from` and `context` (the carried-over bullets).
 
 Avoid maintaining an authoritative “subtickets list” by frequently editing the parent `ticket.md` (it’s a merge-conflict hotspot). Prefer derived views and logs.
 

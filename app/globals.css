@@ -598,7 +598,7 @@ a {
   .codeCard {
     width: 100%;
     margin-top: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
   }
   .codeHeader {
     padding: 10px 12px;
@@ -610,7 +610,7 @@ a {
     min-height: 110px;
   }
   .codeNav {
-    padding: 0 8px 4px;
+    padding: 0 8px 6px;
   }
   .codeNavBtn {
     width: 28px;
