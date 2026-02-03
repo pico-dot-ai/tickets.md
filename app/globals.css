@@ -526,7 +526,7 @@ a {
 
 @media (max-width: 640px) {
   .container {
-    padding: 0 14px;
+    padding: 0 18px;
   }
   .main {
     padding: 28px 0 52px;
@@ -558,8 +558,8 @@ a {
     padding-right: 6px;
   }
   .hero {
-    margin: 0 6px;
-    padding: 22px;
+    margin: 0 8px;
+    padding: 22px 22px 28px;
   }
   .section {
     padding: 0 6px;
@@ -577,6 +577,7 @@ a {
   .codeCard {
     width: 100%;
     margin-top: 12px;
+    margin-bottom: 12px;
   }
   .codeHeader {
     padding: 10px 12px;

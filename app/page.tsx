@@ -173,7 +173,7 @@ created_at: 2026-01-29T18:42:10Z
             </div>
 
             <div className="heroNote">
-              Apache-2.0 licensed • Built for humans and machines
+              Apache-2.0 license • Built for humans and machines
             </div>
           </div>
 
