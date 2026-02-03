@@ -1,3 +1,7 @@
+/* eslint-disable react/no-unescaped-entities */
+"use client";
+
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 const GITHUB_URL = "https://github.com/pico-dot-ai/tickets.md";
@@ -47,6 +51,84 @@ function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function HomePage() {
+  const slides = [
+    `/.tickets/
+  <ticket-id>/
+    ticket.md
+    logs/
+      <run>.jsonl`,
+    `./scripts/tickets validate
+./scripts/tickets log --ticket <id> --actor-type agent --summary "..." --machine`,
+    `Front matter (YAML)
+---
+id: <uuidv7>
+title: "... "
+status: todo
+created_at: 2026-01-29T18:42:10Z
+---
+# Ticket
+## Description
+## Acceptance Criteria
+## Verification`
+  ];
+
+  const [active, setActive] = useState(1); // start at first real slide (index 1 due to leading clone)
+  const [manualDelay, setManualDelay] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(true);
+
+  const displaySlides = [slides[slides.length - 1], ...slides, slides[0]]; // clone last + slides + clone first
+  const firstRealIndex = 1;
+  const lastRealIndex = slides.length;
+  const realIndex =
+    active === 0
+      ? slides.length - 1
+      : active === displaySlides.length - 1
+      ? 0
+      : active - 1;
+
+  useEffect(() => {
+    const baseDelay = 4000;
+    const manualBonus = manualDelay ? 2000 : 0;
+    const timer = setTimeout(() => {
+      setActive((prev) => prev + 1);
+      setIsTransitioning(true);
+      setManualDelay(false);
+    }, baseDelay + manualBonus);
+    return () => clearTimeout(timer);
+  }, [active, manualDelay]);
+
+  const goTo = (next: number, manual = false) => {
+    const minIndex = 0; // leading clone
+    const maxIndex = displaySlides.length - 1; // trailing clone
+    let target = next;
+
+    if (next < minIndex) target = maxIndex - 1; // wrap to last real (just before trailing clone)
+    if (next > maxIndex) target = minIndex + 1; // wrap to first real (just after leading clone)
+
+    setIsTransitioning(true);
+    setActive(target);
+    if (manual) setManualDelay(true);
+  };
+
+  useEffect(() => {
+    if (!isTransitioning) {
+      const t = setTimeout(() => setIsTransitioning(true), 20);
+      return () => clearTimeout(t);
+    }
+  }, [isTransitioning]);
+
+  const handleTransitionEnd = () => {
+    if (active === displaySlides.length - 1) {
+      // at trailing clone (first slide clone) -> jump to first real
+      setIsTransitioning(false);
+      setActive(firstRealIndex);
+    } else if (active === 0) {
+      // at leading clone (last slide clone) -> jump to last real
+      setIsTransitioning(false);
+      setActive(lastRealIndex);
+    }
+  };
+
   return (
     <div className="bg">
       <header className="header">
@@ -82,16 +164,16 @@ export default function HomePage() {
 
             <div className="heroActions">
               <a className="primaryButton" href={GITHUB_URL} target="_blank" rel="noreferrer">
-                View the project on GitHub
+                <GitHubIcon className="ctaIcon" />
+                View on GitHub
               </a>
               <a className="secondaryButton" href="#how">
-                See the approach
+                Getting Started
               </a>
             </div>
 
             <div className="heroNote">
-              Apache-2.0 licensed • Built for humans and tools • Designed to be
-              merge-friendly
+              Apache-2.0 licensed • Built for humans and machines
             </div>
           </div>
 
@@ -103,13 +185,54 @@ export default function HomePage() {
                 <div className="dot dotGreen" />
                 <div className="codeTitle">repo</div>
               </div>
-              <pre className="code">
-                <code>{`/.tickets/
-  <ticket-id>/
-    ticket.md
-    logs/
-      <run>.jsonl`}</code>
-              </pre>
+              <div className="codeCarousel">
+                <div
+                  className="codeTrack"
+                  style={{
+                    transform: `translateX(-${active * 100}%)`,
+                    transition: isTransitioning ? "transform 0.6s ease" : "none"
+                  }}
+                  onTransitionEnd={handleTransitionEnd}
+                >
+                  {displaySlides.map((text, i) => (
+                    <div className="codeSlide" key={i}>
+                      <pre className="code">
+                        <code>{text}</code>
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+                <div className="codeNav">
+                  <button
+                    type="button"
+                    aria-label="Previous snippet"
+                    onClick={() => goTo(active - 1, true)}
+                    className="codeNavBtn"
+                  >
+                    ‹
+                  </button>
+                  <div className="codeDots" role="tablist" aria-label="Code snippets">
+                    {slides.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-label={`Snippet ${i + 1}`}
+                        aria-pressed={i === realIndex}
+                        className={`codeDot${i === realIndex ? " isActive" : ""}`}
+                        onClick={() => goTo(i + 1, true)}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Next snippet"
+                    onClick={() => goTo(active + 1, true)}
+                    className="codeNavBtn"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
               <div className="codeFooter">
                 Stable ticket definitions. Append-only run logs.
               </div>
