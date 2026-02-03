@@ -139,7 +139,7 @@ created_at: 2026-01-29T18:42:10Z
             </div>
             <div className="brandText">
               <div className="brandName">TICKETS.md</div>
-              <div className="brandTag">Agent native in-repo ticketing</div>
+              <div className="brandTag">Agent-native in-repo ticketing</div>
             </div>
           </div>
 
@@ -158,7 +158,7 @@ created_at: 2026-01-29T18:42:10Z
             <h1 className="h1">Tickets that work with agents.</h1>
             <p className="lead">
               A simple, flexible ticket format and CLI designed for parallel,
-              long-running agentic development—without requiring a hosted service
+              long-running agentic development — without requiring a hosted service
               or network access.
             </p>
 
