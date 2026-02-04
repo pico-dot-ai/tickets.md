@@ -50,6 +50,38 @@ function GitHubIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+function CopyBlock({ command }: { command: string }) {
+  const isMultiLine = command.includes("\n");
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = command;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+  };
+
+  return (
+    <div className={`codeBlock isCopyable ${isMultiLine ? "isMultiLine" : "isSingleLine"}`}>
+      <pre className="codeBlockCode">
+        <code>{command}</code>
+      </pre>
+      <button type="button" className="codeBlockCopy" onClick={copy} aria-label="Copy command">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="9" y="9" width="11" height="11" rx="2" />
+          <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const slides = [
     {
@@ -345,42 +377,71 @@ created_at: 2026-01-29T18:42:10Z
         </section>
 
         <section className="section" id="how">
-          <h2 className="h2">How it works</h2>
-          <div className="twoCol">
-            <div>
+          <div className="quickstartBox">
+            <div className="quickstartHeader">
+              <h2 className="h2">Getting Started</h2>
               <p className="p">
-                The system separates a human-readable ticket from a machine-friendly
-                audit trail:
+                It's simple to add TICKETS.md to your repo with helpful scripts and templates.
+                Make it your own and see how you can integrate to your agentic workflows.
               </p>
-              <ol className="list">
-                <li>
-                  <span className="listStrong">Define work</span> in a Markdown ticket
-                  with front matter and clear acceptance criteria.
-                </li>
-                <li>
-                  <span className="listStrong">Log runs</span> to append-only JSONL files
-                  (one file per run) so parallel work stays mergeable.
-                </li>
-                <li>
-                  <span className="listStrong">Integrate tooling</span> via a small CLI
-                  surface—agents, IDEs, and humans speak the same interface.
-                </li>
-              </ol>
             </div>
+            <div className="quickstartGrid">
+              <div className="quickstartCol">
+                <div className="quickstartPane">
+                  <div className="qsStepTitle">Clone the repo</div>
+                  <div className="qsStepDesc">
+                    Clone the official repo and move into it to run the commands below.
+                  </div>
+                  <CopyBlock command="git clone https://github.com/pico-dot-ai/tickets.md.git" />
+                  <CopyBlock command="cd tickets.md" />
 
-            <div className="callout">
-              <div className="calloutTitle">A collaborative default</div>
-              <div className="calloutBody">
-                This project is open source and welcomes contributions—from docs and
-                examples to validators and integrations. If you build tooling that
-                speaks the TICKETS.md format, we want to learn from it.
+                  <div className="qsStepTitle">Copy the CLI into your repo</div>
+                  <div className="qsStepDesc">
+                    If you want to use the CLI in another project, copy the folders in before you init.
+                  </div>
+                  <CopyBlock command="cp -R scripts tickets /path/to/your/repo/" />
+
+                  <div className="qsStepTitle">Install CLI dependencies</div>
+                  <div className="qsStepDesc">
+                    Install the two Python dependencies the tickets CLI uses for YAML and UUIDv7s.
+                  </div>
+                  <CopyBlock command='python3 -m pip install "PyYAML>=6.0" "uuid6>=2024.1.25"' />
+
+                  <div className="qsStepTitle">Initialize the repo</div>
+                  <div className="qsStepDesc">
+                    Initialize the in-repo ticket structure and generate the default templates.
+                  </div>
+                  <CopyBlock command="./scripts/tickets init" />
+                  <div className="qsNote">Add <code>--examples</code> to generate sample tickets.</div>
+
+                  <div className="qsStepTitle">Create a ticket</div>
+                  <div className="qsStepDesc">
+                    Create your first ticket; the CLI prints the UUIDv7 and creates its folder.
+                  </div>
+                  <CopyBlock command='./scripts/tickets new --title "Short title"' />
+                </div>
               </div>
-              <div className="calloutLinks">
-                <ExternalLink href={GITHUB_URL}>Contribute on GitHub</ExternalLink>
-                <span className="sep" aria-hidden="true">
-                  ·
-                </span>
-                <ExternalLink href={`${GITHUB_URL}#readme`}>Read the overview</ExternalLink>
+
+              <div className="quickstartCol">
+                <div className="quickstartPane">
+                  <div className="qsCardTitle">What init generates</div>
+                  <div className="codeBlock">
+                    <pre className="codeBlockCode">
+                      <code>{`/.tickets/
+TICKETS.md
+AGENTS_EXAMPLE.md`}</code>
+                    </pre>
+                  </div>
+                  <div className="qsNote">With <code>--examples</code>: 7 sample tickets + logs.</div>
+
+                  <div className="qsCardTitle">What gets generated when you create a ticket</div>
+                  <div className="codeBlock">
+                    <pre className="codeBlockCode">
+                      <code>{`/.tickets/<ticket-id>/ticket.md
+/.tickets/<ticket-id>/logs/`}</code>
+                    </pre>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

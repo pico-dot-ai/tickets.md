@@ -423,6 +423,137 @@ a {
   align-items: start;
 }
 
+.quickstartBox {
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.quickstartHeader {
+  max-width: none;
+  width: 100%;
+  margin: 0 0 12px;
+}
+
+.quickstartHeader .p {
+  max-width: none;
+}
+
+.quickstartGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.quickstartCol {
+  display: grid;
+  gap: 16px;
+}
+
+.quickstartPane {
+  background: rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.qsStepTitle,
+.qsCardTitle {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin: 16px 0 6px;
+}
+
+.qsStepDesc {
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.72);
+  line-height: 1.6;
+  margin: -2px 0 12px;
+}
+
+.codeBlock {
+  position: relative;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.codeBlock.isCopyable {
+  padding: 10px 40px 10px 12px;
+}
+
+.codeBlockCode {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #4b5563;
+  font-family: "SF Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-weight: 400;
+}
+
+.codeBlockCopy {
+  position: absolute;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.32s ease, transform 0.12s ease, color 0.12s ease;
+}
+
+.codeBlock.isCopyable .codeBlockCopy {
+  top: 10px;
+  transform: none;
+}
+
+.codeBlock.isCopyable.isSingleLine .codeBlockCopy {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.codeBlock:hover .codeBlockCopy {
+  opacity: 1;
+}
+
+.codeBlockCopy:hover {
+  color: #374151;
+}
+
+.codeBlockCopy:active {
+  transform: scale(0.92);
+}
+
+.codeBlockCopy svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.qsNote {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
 .list {
   margin: 10px 0 0;
   padding-left: 22px;
@@ -585,6 +716,9 @@ a {
   .twoCol {
     grid-template-columns: 1fr;
   }
+  .quickstartGrid {
+    grid-template-columns: 1fr;
+  }
   .brand {
     min-width: auto;
   }
@@ -595,7 +729,7 @@ a {
     padding: 0 40px;
   }
   .main {
-    padding: 28px 0 52px;
+    padding: 28px 0 152px;
   }
   .headerInner {
     padding: 10px 0;
@@ -651,6 +785,9 @@ a {
   .listGridText {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+  .codeBlock.isCopyable {
+    padding-right: 44px;
   }
   .listGridIcon {
     width: 52px;
