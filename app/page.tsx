@@ -293,23 +293,48 @@ created_at: 2026-01-29T18:42:10Z
             <strong>merge friendly in-repo ticket+context format</strong>, and{" "}
             <strong>simple tooling</strong> for the agent to work with tickets.
           </p>
-          <ul className="list">
-            <li>
+          <div className="listGrid">
+            <div className="listGridIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="listSvg" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M16 13H8" />
+                <path d="M16 17H8" />
+                <path d="M10 9H8" />
+              </svg>
+            </div>
+            <div className="listGridText">
               The <strong>TICKETS.md</strong> file is a human readable shared contract
               that tells the agent how to work with tickets, what the ticket format is,
               and what tooling is available to work with tickets.
-            </li>
-            <li>
+            </div>
+
+            <div className="listGridIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="listSvg" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z" />
+                <circle cx="12" cy="9" r="0.3" />
+                <circle cx="12" cy="12" r="0.3" />
+                <circle cx="12" cy="15" r="0.3" />
+              </svg>
+            </div>
+            <div className="listGridText">
               An agent friendly, in-repo <strong>ticket format</strong> provides a
               common mechanism for agents to keep track of scope, detail changes made,
               carry across context, and establish relationships between tickets. These
               act as history for agents, in a stable and merge-friendly way.
-            </li>
-            <li>
+            </div>
+
+            <div className="listGridIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="listSvg" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+            </div>
+            <div className="listGridText">
               A set of simple CLI tools provides a consistent way for agents and humans
               to easily work with tickets.
-            </li>
-          </ul>
+            </div>
+          </div>
           <p className="p">
             We’re not aiming to replace <strong>AGENTS.md</strong>, but to provide a
             contract with agents about how to define work, track changes, and carry over
@@ -393,12 +418,7 @@ created_at: 2026-01-29T18:42:10Z
 
       <footer className="footer">
         <div className="container footerInner">
-          <div className="muted">
-            Built to keep tickets simple, durable, and friendly to parallel work.
-          </div>
-          <div className="muted">
-            <ExternalLink href={GITHUB_URL}>pico-dot-ai/tickets.md</ExternalLink>
-          </div>
+          <div className="muted">Made with Love and Codex</div>
         </div>
       </footer>
     </div>
