@@ -383,7 +383,7 @@ a {
 }
 
 .p {
-  margin: 0 0 20px;
+  margin: 14px 0 26px;
   color: rgba(15, 23, 42, 0.8);
   line-height: 1.7;
   max-width: 78ch;
@@ -592,7 +592,7 @@ a {
 
 @media (max-width: 640px) {
   .container {
-    padding: 0 22px;
+    padding: 0 33px;
   }
   .main {
     padding: 28px 0 52px;
