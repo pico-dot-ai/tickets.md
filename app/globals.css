@@ -592,7 +592,7 @@ a {
 
 @media (max-width: 640px) {
   .container {
-    padding: 0 33px;
+    padding: 0 40px;
   }
   .main {
     padding: 28px 0 52px;
@@ -647,6 +647,10 @@ a {
     grid-template-columns: 52px minmax(0, 1fr);
     gap: 14px 12px;
     max-width: 100%;
+  }
+  .listGridText {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .listGridIcon {
     width: 52px;
