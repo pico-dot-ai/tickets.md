@@ -2,7 +2,7 @@
 
 An Agent native, in-repo ticketing system designed for **parallel, long-running agentic development** (and normal human workflows) without relying on network access or external services.
 
-This repo contains the system specification in `REQUIREMENTS.md` and will contain an in-repo `tickets` CLI plus templates (`TICKETS.md`, ticket template, etc.) that implement that spec.
+This repo contains the system specification in `TICKETS.md` and includes an in-repo `tickets` CLI plus templates that implement that spec.
 
 ## What this is
 
@@ -41,12 +41,45 @@ This system addresses those issues by keeping ticket definitions stable and push
 
 ## Where to start
 
-- Read the spec: `REQUIREMENTS.md`
-- Once implemented, bootstrap the repo workflow with: `tickets init`
+- Read the spec: `TICKETS.md`
+- See CLI help: `./scripts/tickets --help`
 
 ## Usage and tooling
 
 For full workflow, CLI commands, and ticket format, see `TICKETS.md` (canonical). README is project overview and FAQ only.
+
+## Quickstart
+
+If you're using this repo directly:
+
+```
+./scripts/tickets init
+./scripts/tickets new --title "Short title"
+```
+
+If you're using this in another repo, copy the CLI and package first:
+
+```
+cp -R scripts tickets /path/to/your/repo/
+```
+
+Then install dependencies (below), and initialize:
+
+```
+./scripts/tickets init
+```
+
+Add `--examples` to generate 7 sample tickets + logs.
+
+What `init` generates:
+
+```
+/.tickets/
+TICKETS.md
+AGENTS_EXAMPLE.md
+```
+
+If your tooling expects `AGENTS.md`, copy or rename `AGENTS_EXAMPLE.md`.
 
 ## Dependencies
 
