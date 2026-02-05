@@ -42,7 +42,7 @@ This system addresses those issues by keeping ticket definitions stable and push
 ## Where to start
 
 - Read the spec: `TICKETS.md`
-- See CLI help: `./scripts/tickets --help`
+- See CLI help: `./tkt_md/scripts/tickets --help`
 
 ## Usage and tooling
 
@@ -53,20 +53,27 @@ For full workflow, CLI commands, and ticket format, see `TICKETS.md` (canonical)
 If you're using this repo directly:
 
 ```
-./scripts/tickets init
-./scripts/tickets new --title "Short title"
+./tkt_md/scripts/tickets init
+./tkt_md/scripts/tickets new --title "Short title"
 ```
 
 If you're using this in another repo, copy the CLI and package first:
 
 ```
-cp -R scripts tickets /path/to/your/repo/
+cp -R tkt_md /path/to/your/repo/
 ```
+
+Directory roles:
+- `tkt_md/scripts/` contains the CLI entrypoint (`./tkt_md/scripts/tickets`) and repo bootstrap helpers.
+- `tkt_md/tickets/` is the Python package that implements the CLI (validation, logging, templates).
+- `tkt_md/tests/` contains the CLI test suite; only needed if you want to run or extend tests.
+- `tkt_md/version/` stores local format definitions (one file per version).
+- `tkt_md/AGENTS_EXAMPLE.md` is the agent harness bootstrap example.
 
 Then install dependencies (below), and initialize:
 
 ```
-./scripts/tickets init
+./tkt_md/scripts/tickets init
 ```
 
 Add `--examples` to generate 7 sample tickets + logs.
@@ -76,10 +83,11 @@ What `init` generates:
 ```
 /.tickets/
 TICKETS.md
-AGENTS_EXAMPLE.md
+tkt_md/AGENTS_EXAMPLE.md
+tkt_md/version/
 ```
 
-If your tooling expects `AGENTS.md`, copy or rename `AGENTS_EXAMPLE.md`.
+If your tooling expects `AGENTS.md`, copy or rename `tkt_md/AGENTS_EXAMPLE.md`.
 
 ## Dependencies
 
@@ -94,4 +102,4 @@ Install them directly:
 python3 -m pip install "PyYAML>=6.0" "uuid6>=2024.1.25"
 ```
 
-Ensure these versions or newer are on the Python path before running `scripts/tickets`.
+Ensure these versions or newer are on the Python path before running `tkt_md/scripts/tickets`.

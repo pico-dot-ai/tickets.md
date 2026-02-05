@@ -116,6 +116,10 @@ def _describe_repair(rep: Dict[str, Any]) -> Tuple[str, Optional[Any]]:
     if action == "set_front_matter_field":
         if field == "id":
             return ("Set ticket id to a valid UUIDv7 (used to identify the ticket).", util.new_uuidv7())
+        if field == "version":
+            return ("Set format version (integer, current 1).", util.FORMAT_VERSION)
+        if field == "version_url":
+            return ("Set version_url (path to the format definition for this version).", util.FORMAT_VERSION_URL)
         if field == "priority":
             return ("Set priority (low|medium|high|critical).", "medium")
         if field == "labels":

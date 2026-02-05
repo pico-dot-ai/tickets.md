@@ -120,14 +120,25 @@ def build_parser():
 
 def cmd_init(args):
     util.ensure_dir(util.tickets_dir())
+    base_dir = util.repo_root() / util.BASE_DIR
+    util.ensure_dir(base_dir)
     # TICKETS.md
     tm = util.repo_root() / "TICKETS.md"
     if not tm.exists():
         tm.write_text(templates.TICKETS_MD_TEMPLATE)
     # AGENTS_EXAMPLE.md
-    am = util.repo_root() / "AGENTS_EXAMPLE.md"
+    am = base_dir / "AGENTS_EXAMPLE.md"
     if not am.exists():
         am.write_text(templates.AGENTS_EXAMPLE_TEMPLATE)
+    # version
+    version_dir = base_dir / "version"
+    util.ensure_dir(version_dir)
+    spec_path = version_dir / "20260205_tkt_md_spec.md"
+    if not spec_path.exists():
+        spec_path.write_text(templates.VERSION_SPEC_TEMPLATE)
+    proposed_path = version_dir / "PROPOSED_tkt_md_spec.md"
+    if not proposed_path.exists():
+        proposed_path.write_text(templates.PROPOSED_SPEC_TEMPLATE)
     if args.examples:
         generate_example_tickets()
     print("Initialized.")
@@ -141,6 +152,8 @@ def cmd_new(args):
     util.ensure_dir(tdir / "logs")
     fm = {
         "id": ticket_id,
+        "version": util.FORMAT_VERSION,
+        "version_url": util.FORMAT_VERSION_URL,
         "title": args.title,
         "status": args.status,
         "created_at": args.created_at or util.iso8601(util.now_utc()),
@@ -233,6 +246,32 @@ def build_repairs_from_issues(issues: List[Dict[str, Any]], include_optional: bo
         if code in ["MISSING_SECTION"]:
             repairs.append(
                 {"id": f"R{len(repairs)+1:04d}", "enabled": False, "safe": True, "issue_ids": [issue.get("id", "")], "action": "add_sections", "ticket_path": path, "params": {}, "optional": False}
+            )
+        elif code in ["VERSION_MISSING", "VERSION_INVALID"]:
+            repairs.append(
+                {
+                    "id": f"R{len(repairs)+1:04d}",
+                    "enabled": False,
+                    "safe": True,
+                    "issue_ids": [issue.get("id", "")],
+                    "action": "set_front_matter_field",
+                    "ticket_path": path,
+                    "params": {"field": "version", "value": util.FORMAT_VERSION},
+                    "optional": False,
+                }
+            )
+        elif code in ["VERSION_URL_MISSING", "VERSION_URL_INVALID"]:
+            repairs.append(
+                {
+                    "id": f"R{len(repairs)+1:04d}",
+                    "enabled": False,
+                    "safe": True,
+                    "issue_ids": [issue.get("id", "")],
+                    "action": "set_front_matter_field",
+                    "ticket_path": path,
+                    "params": {"field": "version_url", "value": util.FORMAT_VERSION_URL},
+                    "optional": False,
+                }
             )
         elif code in ["CREATED_AT_INVALID", "MISSING_CREATED_AT"]:
             repairs.append(
@@ -455,11 +494,11 @@ def generate_example_tickets():
             "assignment": {"mode": "mixed", "owner": "team:core"},
             "related": ["backend", "frontend", "testing", "docs", "release"],
             "agent_limits": {"iteration_timebox_minutes": 20, "max_iterations": 6, "max_tool_calls": 80, "checkpoint_every_minutes": 5},
-            "verification": {"commands": ["python -m pytest", "./scripts/tickets validate"]},
+            "verification": {"commands": ["python -m pytest", "./tkt_md/scripts/tickets validate"]},
             "body": {
                 "description": "Track delivery of Feature Alpha and coordinate child tickets.",
                 "acceptance": ["Children tickets created and linked", "Rollup status kept current", "Release plan agreed"],
-                "verification": ["./scripts/tickets validate"],
+                "verification": ["./tkt_md/scripts/tickets validate"],
             },
             "logs": [
                 {
@@ -569,11 +608,11 @@ def generate_example_tickets():
             "labels": ["release"],
             "dependencies": ["testing"],
             "blocks": ["bugfix"],
-            "verification": {"commands": ["./scripts/tickets validate"]},
+            "verification": {"commands": ["./tkt_md/scripts/tickets validate"]},
             "body": {
                 "description": "Plan release window and rollout steps.",
                 "acceptance": ["Release checklist approved", "Rollout scheduled", "Comms ready"],
-                "verification": ["./scripts/tickets validate"],
+                "verification": ["./tkt_md/scripts/tickets validate"],
             },
             "logs": [
                 {
@@ -611,6 +650,8 @@ def generate_example_tickets():
         util.ensure_dir(tdir / "logs")
         fm = {
             "id": ticket_id,
+            "version": util.FORMAT_VERSION,
+            "version_url": util.FORMAT_VERSION_URL,
             "title": spec["title"],
             "status": spec["status"],
             "created_at": util.iso8601(now),
@@ -649,6 +690,8 @@ def generate_example_tickets():
             run_id = util.new_uuidv7()
             log_path = tdir / "logs" / f"{run_started}-{run_id}.jsonl"
             log_entry = {
+                "version": util.FORMAT_VERSION,
+                "version_url": util.FORMAT_VERSION_URL,
                 "ts": util.iso8601(util.now_utc()),
                 "run_started": run_started,
                 "actor_type": "agent",
@@ -690,6 +733,8 @@ def cmd_status(args):
         run_id = args.run_id or util.new_uuidv7()
         run_started = args.run_started or util.iso_basic(util.now_utc())
         log_entry = {
+            "version": util.FORMAT_VERSION,
+            "version_url": util.FORMAT_VERSION_URL,
             "ts": util.iso8601(util.now_utc()),
             "run_started": run_started.replace(" ", ""),
             "actor_type": "human",
@@ -707,6 +752,8 @@ def cmd_log(args):
     run_id = args.run_id or util.new_uuidv7()
     run_started = args.run_started or util.iso_basic(util.now_utc())
     entry: Dict[str, Any] = {
+        "version": util.FORMAT_VERSION,
+        "version_url": util.FORMAT_VERSION_URL,
         "ts": util.iso8601(util.now_utc()),
         "run_started": run_started.replace(" ", ""),
         "actor_type": args.actor_type,

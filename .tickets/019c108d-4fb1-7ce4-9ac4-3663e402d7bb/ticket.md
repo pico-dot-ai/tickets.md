@@ -24,7 +24,7 @@ agent_limits:
 verification:
   commands:
   - python -m pytest
-  - ./scripts/tickets validate
+  - ./tkt_md/scripts/tickets validate
 ---
 # Ticket
 
@@ -37,4 +37,4 @@ Track delivery of Feature Alpha and coordinate child tickets.
 - [ ] Release plan agreed
 
 ## Verification
-- ./scripts/tickets validate
+- ./tkt_md/scripts/tickets validate

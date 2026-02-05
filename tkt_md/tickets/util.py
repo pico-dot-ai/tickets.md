@@ -11,6 +11,10 @@ from uuid6 import uuid7, UUID
 
 # Paths
 
+BASE_DIR = "tkt_md"
+FORMAT_VERSION = 1
+FORMAT_VERSION_URL = "version/20260205_tkt_md_spec.md"
+
 
 def repo_root() -> Path:
     return Path.cwd()

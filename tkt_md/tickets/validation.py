@@ -5,6 +5,16 @@ from typing import List, Dict, Any, Tuple
 from . import util
 
 
+def _parse_version(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        v = value.strip()
+        if v.isdigit():
+            return int(v)
+    return None
+
+
 def collect_ticket_paths(target: str | None) -> List[Path]:
     if target:
         p = Path(target)
@@ -28,6 +38,20 @@ def validate_ticket(path: Path, all_fields: bool = False) -> Tuple[List[Dict[str
         if field not in fm:
             issues.append({"severity": "error", "code": f"MISSING_{field.upper()}", "message": f"Missing {field}", "ticket_path": str(path)})
 
+    if "version" not in fm:
+        issues.append({"severity": "warning", "code": "VERSION_MISSING", "message": "Missing version (assume 1 for legacy tickets)", "ticket_path": str(path)})
+    else:
+        ver = _parse_version(fm.get("version"))
+        if ver is None or ver <= 0:
+            issues.append({"severity": "error", "code": "VERSION_INVALID", "message": "version must be a positive integer", "ticket_path": str(path)})
+        if "version_url" not in fm:
+            issues.append({"severity": "error", "code": "VERSION_URL_MISSING", "message": "version_url required when version is present", "ticket_path": str(path)})
+        elif not isinstance(fm.get("version_url"), str) or not fm.get("version_url").strip():
+            issues.append({"severity": "error", "code": "VERSION_URL_INVALID", "message": "version_url must be a non-empty string", "ticket_path": str(path)})
+
+    if "version_url" in fm and "version" not in fm:
+        issues.append({"severity": "warning", "code": "VERSION_URL_WITHOUT_VERSION", "message": "version_url present without version", "ticket_path": str(path)})
+
     if "id" in fm and (not isinstance(fm["id"], str) or not util.is_uuidv7(fm["id"])):
         issues.append({"severity": "error", "code": "ID_NOT_UUIDV7", "message": "id must be UUIDv7", "ticket_path": str(path)})
 
@@ -46,6 +70,9 @@ def validate_ticket(path: Path, all_fields: bool = False) -> Tuple[List[Dict[str
             mode = fm["assignment"].get("mode")
             if mode and mode not in ["human_only", "agent_only", "mixed"]:
                 issues.append({"severity": "error", "code": "ASSIGNMENT_MODE_INVALID", "message": "assignment.mode invalid", "ticket_path": str(path)})
+
+    if "custom" in fm and not isinstance(fm["custom"], dict):
+        issues.append({"severity": "error", "code": "CUSTOM_INVALID", "message": "custom must be mapping", "ticket_path": str(path)})
 
     relationship_keys = ["dependencies", "blocks", "related"]
     for key in relationship_keys:
@@ -120,6 +147,20 @@ def validate_run_log(path: Path, machine_strict_default: bool) -> List[Dict[str,
             if req not in entry:
                 sev = "error" if machine_entry else "warning"
                 issues.append({"severity": sev, "code": "LOG_FIELD_MISSING", "message": f"{req} missing", "log": loc})
+        if "version" not in entry:
+            sev = "error" if machine_entry else "warning"
+            issues.append({"severity": sev, "code": "LOG_VERSION_MISSING", "message": "version missing (assume 1 for legacy logs)", "log": loc})
+        else:
+            ver = _parse_version(entry.get("version"))
+            if ver is None or ver <= 0:
+                sev = "error" if machine_entry else "warning"
+                issues.append({"severity": sev, "code": "LOG_VERSION_INVALID", "message": "version must be a positive integer", "log": loc})
+            if "version_url" not in entry:
+                sev = "error" if machine_entry else "warning"
+                issues.append({"severity": sev, "code": "LOG_VERSION_URL_MISSING", "message": "version_url required when version is present", "log": loc})
+            elif not isinstance(entry.get("version_url"), str) or not entry.get("version_url").strip():
+                sev = "error" if machine_entry else "warning"
+                issues.append({"severity": sev, "code": "LOG_VERSION_URL_INVALID", "message": "version_url must be a non-empty string", "log": loc})
         if "ts" in entry and util.parse_iso(entry["ts"]) is None:
             sev = "error" if machine_entry else "warning"
             issues.append({"severity": sev, "code": "TS_INVALID", "message": "ts not ISO8601", "log": loc})
@@ -139,4 +180,7 @@ def validate_run_log(path: Path, machine_strict_default: bool) -> List[Dict[str,
             issues.append({"severity": sev, "code": "ACTOR_TYPE_INVALID", "message": "actor_type must be human|agent", "log": loc})
         if machine_entry and not (entry.get("written_by") == "tickets" or entry.get("machine") is True):
             issues.append({"severity": "error", "code": "MACHINE_MARKER_MISSING", "message": "machine marker required", "log": loc})
+        if "custom" in entry and not isinstance(entry["custom"], dict):
+            sev = "error" if machine_entry else "warning"
+            issues.append({"severity": sev, "code": "LOG_CUSTOM_INVALID", "message": "custom must be mapping", "log": loc})
     return issues

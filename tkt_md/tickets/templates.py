@@ -7,11 +7,18 @@ TICKETS_MD_TEMPLATE = dedent(
     This repository uses a repo-native ticketing system designed for **parallel, long-running agentic work** and normal human collaboration, without relying on external services or internet access.
     
     **TICKETS.md ** explains the workflow, file formats, and required tool usage for both humans and agents. If there is ever a conflict between this file and other docs, follow this file.
+
+    ## Spec version
+    - `version`: 1
+    - `version_url`: `version/20260205_tkt_md_spec.md`
+    - Local file: `tkt_md/version/20260205_tkt_md_spec.md`
+
+    Version definitions live under `tkt_md/version/`. Each spec file is self-contained and ends with a diff from the previous version.
     
     ## What this system is
     - A lightweight, Markdown-first ticket format stored under `/.tickets/`.
     - A merge-friendly history model: **append-only JSONL run logs**, one file per run, per ticket.
-    - A repo-local CLI (`./scripts/tickets`) that is the **single integration surface** for humans, agents, and IDE/agentic tooling.
+    - A repo-local CLI (`./tkt_md/scripts/tickets`) that is the **single integration surface** for humans, agents, and IDE/agentic tooling.
     
     ## What this is trying to do
     Parallel, long-running agentic work fails in predictable ways:
@@ -33,32 +40,32 @@ TICKETS_MD_TEMPLATE = dedent(
     
     ### Initialize
     Create the repo structure and templates (idempotent):
-    - `./scripts/tickets init`
+    - `./tkt_md/scripts/tickets init`
     
-    This creates (if missing): `/.tickets/`, `TICKETS.md`, and `AGENTS_EXAMPLE.md`.
+    This creates (if missing): `/.tickets/`, `TICKETS.md`, `tkt_md/AGENTS_EXAMPLE.md`, and `tkt_md/version/`.
     
     ### Create a ticket
-    - `./scripts/tickets new --title "Short title"`
+    - `./tkt_md/scripts/tickets new --title "Short title"`
     
     This prints the new ticket ID (a lowercase UUIDv7) and creates:
     - `/.tickets/<ticket-id>/ticket.md`
     - `/.tickets/<ticket-id>/logs/`
     
     ### Validate, then work
-    - `./scripts/tickets validate`
+    - `./tkt_md/scripts/tickets validate`
     
     If validation fails and you want a complete report + repair plan:
-    - `./scripts/tickets validate --issues > issues.yaml`
-    - `./scripts/tickets repair --issues-file issues.yaml --non-interactive`
+    - `./tkt_md/scripts/tickets validate --issues > issues.yaml`
+    - `./tkt_md/scripts/tickets repair --issues-file issues.yaml --non-interactive`
     
     ### Log your work (human or agent)
     Use the CLI to write logs whenever possible (merge-friendly, structured, and tooling-validated).
     
     Agentic tools (including human-invoked tools like Cursor/Windsurf/Codex CLI/Claude Code) SHOULD log with `--machine`:
-    - `./scripts/tickets log --ticket <id> --actor-type agent --actor-id "cursor (human:@alice)" --summary "Implemented validator." --machine`
+    - `./tkt_md/scripts/tickets log --ticket <id> --actor-type agent --actor-id "cursor (human:@alice)" --summary "Implemented validator." --machine`
     
     Humans can log without machine marker:
-    - `./scripts/tickets log --ticket <id> --actor-type human --actor-id "@alice" --summary "Investigated failing test; will retry tomorrow."`
+    - `./tkt_md/scripts/tickets log --ticket <id> --actor-type human --actor-id "@alice" --summary "Investigated failing test; will retry tomorrow."`
     
     ---
     
@@ -83,6 +90,8 @@ TICKETS_MD_TEMPLATE = dedent(
     
     #### Required fields
     - `id`: lowercase UUIDv7 string
+    - `version`: format version (integer)
+    - `version_url`: path to the definition for this version (repo-local, relative to `tkt_md/`)
     - `title`: string
     - `status`: `todo|doing|blocked|done|canceled`
     - `created_at`: ISO 8601 timestamp in UTC (use `Z`)
@@ -92,6 +101,8 @@ TICKETS_MD_TEMPLATE = dedent(
     ```md
     ---
     id: 0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5c6d
+    version: 1
+    version_url: "version/20260205_tkt_md_spec.md"
     title: "Add tickets validate --issues"
     status: todo
     created_at: 2026-01-29T18:42:10Z
@@ -135,12 +146,29 @@ TICKETS_MD_TEMPLATE = dedent(
     verification:
       commands:
         - "python -m pytest"
-        - "./scripts/tickets validate"
+        - "./tkt_md/scripts/tickets validate"
     ```
     
     Important:
     - Other relationship views (parent/child rollups, duplicates, supersedes, reverse edges, etc.) are computed by tooling and MUST NOT be persisted in `ticket.md`.
     - There is no `updated_at`. “Last updated” is derived from log timestamps (`ts`).
+
+    **Custom fields (namespaced)**
+    ```yaml
+    custom:
+      my_org_priority: "P1"
+      upstream_ref: "RFC-42"
+    ```
+
+    Custom fields MUST live under `custom` to avoid collisions. Tooling should ignore unknown keys under `custom`.
+    Extensions are repo-local; use a clear prefix for keys and avoid introducing new top-level extension fields.
+
+    ### Versioning
+    - `version` is an integer format version (current: `1`).
+    - `version_url` must point to the repo-local definition for that version.
+    - Version files live under `tkt_md/version/` and end with a diff from the previous version.
+    - New tooling must read older versions. If `version` is missing, tools may assume `1` and warn.
+    - Bumps are rare and only when a change cannot be expressed additively.
     
     ### Ticket body sections (required)
     The ticket body MUST include these sections (at least the headings):
@@ -161,7 +189,7 @@ TICKETS_MD_TEMPLATE = dedent(
     - `done` and `canceled` are immutable unless explicitly reopened by a human (set to `doing` and log why).
     
     Status updates:
-    - `./scripts/tickets status --ticket <id> --status doing --log`
+    - `./tkt_md/scripts/tickets status --ticket <id> --status doing --log`
     
     ---
     
@@ -183,6 +211,8 @@ TICKETS_MD_TEMPLATE = dedent(
     
     ### Log entry schema (one JSON object per line)
     Required fields:
+    - `version`: format version (integer)
+    - `version_url`: path to the definition for this version (repo-local, relative to `tkt_md/`)
     - `ts`: ISO 8601 UTC timestamp for the entry
     - `run_started`: ISO 8601 UTC timestamp (same for all entries in the file)
     - `actor_type`: `human|agent`
@@ -196,6 +226,7 @@ TICKETS_MD_TEMPLATE = dedent(
     - `created_from`: string (parent ticket ID when created by splitting)
     - `context_carried_over`: `[...]` (bullets describing copied/adapted context)
     - `decisions`, `next_steps`, `blockers`: lists of strings
+    - `custom`: `{...}` (namespaced custom data)
     
     Machine marker:
     - If a log entry is written by the `tickets` CLI with `--machine`, it MUST include a machine marker:
@@ -207,7 +238,7 @@ TICKETS_MD_TEMPLATE = dedent(
     
     Example machine-written entry:
     ```json
-    {"ts":"2026-01-29T18:50:00Z","run_started":"20260129T184210.123Z","actor_type":"agent","actor_id":"codex-cli (human:@alice)","summary":"Implemented tickets validate --issues.","verification":{"commands":["./scripts/tickets validate"],"results":"pass"},"written_by":"tickets"}
+    {"version":1,"version_url":"version/20260205_tkt_md_spec.md","ts":"2026-01-29T18:50:00Z","run_started":"20260129T184210.123Z","actor_type":"agent","actor_id":"codex-cli (human:@alice)","summary":"Implemented tickets validate --issues.","verification":{"commands":["./tkt_md/scripts/tickets validate"],"results":"pass"},"written_by":"tickets"}
     ```
     
     Merge conflict rule (rare):
@@ -217,12 +248,12 @@ TICKETS_MD_TEMPLATE = dedent(
     
     ## Required tool usage (agents and automation)
     To keep state consistent and merge-friendly, agents and agentic tools SHOULD use the CLI for ticket operations:
-    - Create tickets: `./scripts/tickets new`
-    - Validate: `./scripts/tickets validate` (or `--issues` for a full report)
-    - Repair: `./scripts/tickets repair --issues-file ...`
-    - Status changes: `./scripts/tickets status --log`
-    - Work logs: `./scripts/tickets log` (use `--machine` when the entry is tooling-written)
-    - Listing/triage: `./scripts/tickets list` (use `--json` for automation)
+    - Create tickets: `./tkt_md/scripts/tickets new`
+    - Validate: `./tkt_md/scripts/tickets validate` (or `--issues` for a full report)
+    - Repair: `./tkt_md/scripts/tickets repair --issues-file ...`
+    - Status changes: `./tkt_md/scripts/tickets status --log`
+    - Work logs: `./tkt_md/scripts/tickets log` (use `--machine` when the entry is tooling-written)
+    - Listing/triage: `./tkt_md/scripts/tickets list` (use `--json` for automation)
     
     Humans may edit `ticket.md` directly (it is designed for that), but logs should be appended via the CLI whenever feasible.
     
@@ -301,7 +332,7 @@ TICKETS_MD_TEMPLATE = dedent(
     
     ## Splitting tickets (subtickets) in parallel workflows
     If an agent discovers a ticket is too large or should be parallelized:
-    1) Create subtickets with `./scripts/tickets new`.
+    1) Create subtickets with `./tkt_md/scripts/tickets new`.
     2) Link with `related` (and only use `dependencies`/`blocks` when there is a real ordering constraint).
     3) Log the split on the original ticket and include `tickets_created`.
     4) Ensure each new ticket is executable in isolation by copying/adapting the minimum required context into the child `ticket.md`, and writing a first child log entry that includes `created_from` and `context_carried_over` when possible.
@@ -311,12 +342,12 @@ TICKETS_MD_TEMPLATE = dedent(
     ---
     
     ## Validation, issues reports, and repair
-    - `./scripts/tickets validate`:
+    - `./tkt_md/scripts/tickets validate`:
       - exit `0`: ok
       - exit `1`: validation errors
       - exit `2`: tooling/IO errors
     
-    - `./scripts/tickets validate --issues` emits a machine-readable report with:
+    - `./tkt_md/scripts/tickets validate --issues` emits a machine-readable report with:
       - all `issues` (errors and warnings), and
       - a `repairs` section that can be edited and consumed by `tickets repair` in `--non-interactive` mode.
     
@@ -335,7 +366,7 @@ TICKETS_MD_TEMPLATE = dedent(
         params: {}
     ```
     
-    - `./scripts/tickets repair --issues-file <path>` applies enabled repairs:
+    - `./tkt_md/scripts/tickets repair --issues-file <path>` applies enabled repairs:
       - Safe repairs can be non-interactive.
       - Disruptive repairs (like changing `id`) must have explicit decisions filled in (or require interactive mode).
     
@@ -377,12 +408,71 @@ AGENTS_EXAMPLE_TEMPLATE = dedent(
     ## Required behavior
     - First action: open and read `TICKETS.md` (canonical ticket workflow and rules).
     - First response: briefly confirm understanding of the ticketing system described in `TICKETS.md` before starting any implementation work.
-    - Use the repo-local CLI (`./scripts/tickets`) as the integration surface for tickets and logs.
-    - Before performing work on a ticket, validate it: run `./scripts/tickets validate` (or `./scripts/tickets validate --issues` + `./scripts/tickets repair`).
-    - When logging via the CLI: use `./scripts/tickets log --machine` so logs are strictly structured.
+    - Use the repo-local CLI (`./tkt_md/scripts/tickets`) as the integration surface for tickets and logs.
+    - Before performing work on a ticket, validate it: run `./tkt_md/scripts/tickets validate` (or `./tkt_md/scripts/tickets validate --issues` + `./tkt_md/scripts/tickets repair`).
+    - When logging via the CLI: use `./tkt_md/scripts/tickets log --machine` so logs are strictly structured.
     - Respect `assignment.mode` and any `agent_limits` in the ticket/config.
 
     ## Bootstrapping TICKETS.md
-    - If `.tickets/` or `TICKETS.md` are missing, run `./scripts/tickets init`.
+    - If `.tickets/` or `TICKETS.md` are missing, run `./tkt_md/scripts/tickets init`.
+    """
+).strip() + "\n"
+
+VERSION_SPEC_TEMPLATE = dedent(
+    """
+    # Ticket Format Spec (Version 1)
+
+    - Version: 1
+    - Version URL: `version/20260205_tkt_md_spec.md`
+    - Released: 2026-02-05
+    - Status: current
+
+    ## Definition (format only)
+    This version defines the ticket and log formats used by this repo. It does not define workflow policy; see `TICKETS.md` for full workflow.
+
+    ### Ticket front matter (required)
+    - `id`: lowercase UUIDv7 string
+    - `version`: format version (integer)
+    - `version_url`: path to this definition (repo-local, relative to `tkt_md/`)
+    - `title`: string
+    - `status`: `todo|doing|blocked|done|canceled`
+    - `created_at`: ISO 8601 UTC timestamp
+
+    ### Log entry (required)
+    - `version`: format version (integer)
+    - `version_url`: path to this definition (repo-local, relative to `tkt_md/`)
+    - `ts`: ISO 8601 UTC timestamp
+    - `run_started`: ISO 8601 UTC timestamp
+    - `actor_type`: `human|agent`
+    - `actor_id`: string
+    - `summary`: short string
+    - `context`: `[...]` (bullets capturing run context)
+
+    ### Extensions
+    - Extensions are repo-local and must live under the `custom` key.
+    - Tools should ignore unknown keys under `custom`.
+
+    ## Diff from previous version
+    - Initial version (no previous version).
+    """
+).strip() + "\n"
+
+PROPOSED_SPEC_TEMPLATE = dedent(
+    """
+    # Proposed Ticket Format Spec (Draft)
+
+    **Status: Draft — not published.**
+
+    This file is for in-repo discussion and iteration only. Do not reference it from `version_url`.
+
+    ## Intended version
+    - Version: (set when ready)
+    - Target date: (YYYYMMDD)
+
+    ## Definition (format only)
+    (fill in)
+
+    ## Diff from previous version
+    (fill in)
     """
 ).strip() + "\n"

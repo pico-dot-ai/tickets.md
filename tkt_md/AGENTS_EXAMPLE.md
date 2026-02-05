@@ -7,10 +7,10 @@ The purpose of this bootstrap is to ensure an agent loads the canonical workflow
 ## Required behavior
 - First action: open and read `TICKETS.md` (canonical ticket workflow and rules).
 - First response: briefly confirm understanding of the ticketing system described in `TICKETS.md` before starting any implementation work.
-- Use the repo-local CLI (`./scripts/tickets`) as the integration surface for tickets and logs.
-- Before performing work on a ticket, validate it: run `./scripts/tickets validate` (or `./scripts/tickets validate --issues` + `./scripts/tickets repair`).
-- When logging via the CLI: use `./scripts/tickets log --machine` so logs are strictly structured.
+- Use the repo-local CLI (`./tkt_md/scripts/tickets`) as the integration surface for tickets and logs.
+- Before performing work on a ticket, validate it: run `./tkt_md/scripts/tickets validate` (or `./tkt_md/scripts/tickets validate --issues` + `./tkt_md/scripts/tickets repair`).
+- When logging via the CLI: use `./tkt_md/scripts/tickets log --machine` so logs are strictly structured.
 - Respect `assignment.mode` and any `agent_limits` in the ticket/config.
 
 ## Bootstrapping TICKETS.md
-- If `.tickets/` or `TICKETS.md` are missing, run `./scripts/tickets init`.
+- If `.tickets/` or `TICKETS.md` are missing, run `./tkt_md/scripts/tickets init`.

@@ -96,8 +96,8 @@ export default function HomePage() {
     {
       title: "CLI touchpoints",
       footer: "Validate, log runs, and keep history local.",
-      code: `./scripts/tickets validate
-./scripts/tickets log --ticket <id> --actor-type agent --summary "..." --machine`
+      code: `./tkt_md/scripts/tickets validate
+./tkt_md/scripts/tickets log --ticket <id> --actor-type agent --summary "..." --machine`
     },
     {
       title: "Ticket anatomy",
@@ -411,14 +411,14 @@ created_at: 2026-01-29T18:42:10Z
                   <div className="qsStepDesc">
                     Initialize the in-repo ticket structure and generate the default templates.
                   </div>
-                  <CopyBlock command="./scripts/tickets init" />
+                  <CopyBlock command="./tkt_md/scripts/tickets init" />
                   <div className="qsNote">Add <code>--examples</code> to generate sample tickets.</div>
 
                   <div className="qsStepTitle">Create a ticket</div>
                   <div className="qsStepDesc">
                     Create your first ticket; the CLI prints the UUIDv7 and creates its folder.
                   </div>
-                  <CopyBlock command='./scripts/tickets new --title "Short title"' />
+                  <CopyBlock command='./tkt_md/scripts/tickets new --title "Short title"' />
                 </div>
               </div>
 
@@ -429,7 +429,8 @@ created_at: 2026-01-29T18:42:10Z
                     <pre className="codeBlockCode">
                       <code>{`/.tickets/
 TICKETS.md
-AGENTS_EXAMPLE.md`}</code>
+tkt_md/AGENTS_EXAMPLE.md
+tkt_md/version/`}</code>
                     </pre>
                   </div>
                   <div className="qsNote">With <code>--examples</code>: 7 sample tickets + logs.</div>
