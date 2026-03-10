@@ -399,9 +399,6 @@ created_at: 2026-01-29T18:42:10Z
                     Bootstrap the ticket system assets from the package templates.
                   </div>
                   <CopyBlock command="npx @picoai/tickets init" />
-                  <div className="qsNote">
-                    Add <code>--examples</code> to generate sample tickets.
-                  </div>
 
                   <div className="qsStepTitle">Create a ticket</div>
                   <div className="qsStepDesc">
@@ -413,13 +410,16 @@ created_at: 2026-01-29T18:42:10Z
 
               <div className="quickstartCol">
                 <div className="quickstartPane">
-                  <div className="qsCardTitle">What init generates</div>
+                  <div className="qsCardTitle">Understanding Tickets Structure</div>
+                  <div className="qsStepDesc">
+                    Initializing tickets in your repo will write the key files needed to manage ticket tracking.
+                  </div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
-                      <code>{`/.tickets/
-TICKETS.md
+                      <code>{`TICKETS.md
 AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
-/.tickets/spec/version/`}</code>
+/.tickets/
+  /spec/version/`}</code>
                     </pre>
                   </div>
                   <div className="qsCardTitle">What gets generated when you create a ticket</div>
