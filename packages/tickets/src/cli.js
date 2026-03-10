@@ -358,10 +358,13 @@ function renderJson(graph, includeRelated) {
   };
 }
 
-const AGENTS_SECTION_START = "<!-- @picoai/tickets:agents:start -->";
-const AGENTS_SECTION_END = "<!-- @picoai/tickets:agents:end -->";
-const TICKETS_SECTION_START = "<!-- @picoai/tickets:tickets-md:start -->";
-const TICKETS_SECTION_END = "<!-- @picoai/tickets:tickets-md:end -->";
+const AGENTS_LEGACY_SECTION_START = "<!-- @picoai/tickets:agents:start -->";
+const AGENTS_LEGACY_SECTION_END = "<!-- @picoai/tickets:agents:end -->";
+const AGENTS_SECTION_HEADING = "Ticketing Workflow";
+const TICKETS_MANAGED_START = "<!-- @picoai/tickets:managed:start -->";
+const TICKETS_MANAGED_END = "<!-- @picoai/tickets:managed:end -->";
+const TICKETS_LEGACY_START = "<!-- @picoai/tickets:tickets-md:start -->";
+const TICKETS_LEGACY_END = "<!-- @picoai/tickets:tickets-md:end -->";
 const TOOL_VERSION = loadToolVersion();
 
 function writeTemplateFile(targetPath, templatePath, apply) {
@@ -403,84 +406,182 @@ function stripManagedSection(content, startMarker, endMarker) {
   return `${before}\n\n${after}`;
 }
 
-function collectLevel2Headings(content) {
-  const headings = new Set();
-  const normalized = normalizeContent(content);
-  for (const match of normalized.matchAll(/^##\s+(.+)$/gm)) {
-    headings.add(match[1].trim().toLowerCase());
+function parseHeadingLine(line) {
+  const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+  if (!match) {
+    return null;
   }
-  return headings;
+  return {
+    level: match[1].length,
+    text: match[2].trim().toLowerCase(),
+  };
 }
 
-function extractLevel2Sections(content) {
-  const lines = normalizeContent(content).split("\n");
-  const sections = [];
-  let current = null;
+function findHeadingBlockRange(lines, headingText, headingLevel) {
+  const target = headingText.trim().toLowerCase();
+  let start = -1;
 
-  for (const line of lines) {
-    if (line.startsWith("## ")) {
-      if (current) {
-        sections.push({
-          title: current.title,
-          content: current.lines.join("\n").trimEnd(),
-        });
-      }
-      current = {
-        title: line.slice(3).trim(),
-        lines: [line],
-      };
+  for (let index = 0; index < lines.length; index += 1) {
+    const parsed = parseHeadingLine(lines[index]);
+    if (!parsed) {
       continue;
     }
-
-    if (current) {
-      current.lines.push(line);
+    if (parsed.level === headingLevel && parsed.text === target) {
+      start = index;
+      break;
     }
   }
 
-  if (current) {
-    sections.push({
-      title: current.title,
-      content: current.lines.join("\n").trimEnd(),
-    });
+  if (start < 0) {
+    return null;
   }
 
-  return sections;
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const parsed = parseHeadingLine(lines[index]);
+    if (!parsed) {
+      continue;
+    }
+    if (parsed.level === headingLevel) {
+      end = index;
+      break;
+    }
+  }
+
+  return { start, end };
 }
 
-function upsertTicketsMdManagedSection(existingContent, templateContent) {
-  const baseContent = stripManagedSection(existingContent, TICKETS_SECTION_START, TICKETS_SECTION_END).trimEnd();
-  const headings = collectLevel2Headings(baseContent);
-  const missingSections = extractLevel2Sections(templateContent).filter(
-    (section) => !headings.has(section.title.toLowerCase()),
-  );
+function extractHeadingBlock(content, headingText, headingLevel) {
+  const lines = normalizeContent(content).split("\n");
+  const range = findHeadingBlockRange(lines, headingText, headingLevel);
+  if (!range) {
+    return null;
+  }
+  return lines.slice(range.start, range.end).join("\n").trimEnd();
+}
 
-  const lines = [
-    TICKETS_SECTION_START,
-    "## Managed TICKETS.md Additions",
-    "",
+function joinSections(before, managedSection, after) {
+  const sections = [];
+  if (before) {
+    sections.push(before.trimEnd());
+  }
+  sections.push(managedSection.trimEnd());
+  if (after) {
+    sections.push(after.trimStart());
+  }
+  return `${sections.join("\n\n")}\n`;
+}
+
+function replaceHeadingBlock(content, replacement, headingText, headingLevel, fallbackLevels = []) {
+  const normalized = normalizeContent(content);
+  const lines = normalized.split("\n");
+
+  let range = findHeadingBlockRange(lines, headingText, headingLevel);
+  if (!range) {
+    for (const level of fallbackLevels) {
+      range = findHeadingBlockRange(lines, headingText, level);
+      if (range) {
+        break;
+      }
+    }
+  }
+
+  if (range) {
+    const before = lines.slice(0, range.start).join("\n").trimEnd();
+    const after = lines.slice(range.end).join("\n").trimStart();
+    return joinSections(before, replacement, after);
+  }
+
+  if (!normalized.trim()) {
+    return `${replacement.trimEnd()}\n`;
+  }
+
+  return `${normalized.trimEnd()}\n\n${replacement.trimEnd()}\n`;
+}
+
+function replaceLegacyAgentsH1Block(content, replacement) {
+  const normalized = normalizeContent(content);
+  const lines = normalized.split("\n");
+  const h1Range = findHeadingBlockRange(lines, AGENTS_SECTION_HEADING, 1);
+  if (!h1Range) {
+    return null;
+  }
+
+  let end = h1Range.end;
+  const bootstrappingRange = findHeadingBlockRange(lines, "Bootstrapping TICKETS.md", 2);
+  if (bootstrappingRange && bootstrappingRange.start > h1Range.start) {
+    end = lines.length;
+    for (let index = bootstrappingRange.end; index < lines.length; index += 1) {
+      const parsed = parseHeadingLine(lines[index]);
+      if (!parsed) {
+        continue;
+      }
+      if (parsed.level <= 2) {
+        end = index;
+        break;
+      }
+    }
+  }
+
+  const before = lines.slice(0, h1Range.start).join("\n").trimEnd();
+  const after = lines.slice(end).join("\n").trimStart();
+  return joinSections(before, replacement, after);
+}
+
+function extractManagedSection(content, startMarker, endMarker) {
+  const normalized = normalizeContent(content);
+  const startIndex = normalized.indexOf(startMarker);
+  const endIndex = normalized.indexOf(endMarker);
+  if (startIndex < 0 || endIndex <= startIndex) {
+    return null;
+  }
+  return normalized.slice(startIndex, endIndex + endMarker.length).trimEnd();
+}
+
+function injectTicketsManagedMetadata(managedSection) {
+  const normalized = normalizeContent(managedSection);
+  const lines = normalized.split("\n");
+  const headingIndex = lines.findIndex((line) => /^##\s+/.test(line.trim()));
+  if (headingIndex < 0) {
+    return normalized.trimEnd();
+  }
+
+  const metadata = [
     `- applied_at: ${iso8601(nowUtc())}`,
     `- written_by: @picoai/tickets@${TOOL_VERSION}`,
     `- spec_version: ${FORMAT_VERSION}`,
     `- version_url: ${FORMAT_VERSION_URL}`,
-    "",
-    "### Added template sections",
-    "",
   ];
 
-  if (missingSections.length === 0) {
-    lines.push("- None (all template sections already exist in the base document).");
-  } else {
-    for (const section of missingSections) {
-      lines.push(section.content, "");
-    }
+  const before = lines.slice(0, headingIndex + 1);
+  const after = lines.slice(headingIndex + 1);
+  return [...before, "", ...metadata, "", ...after].join("\n").replaceAll(/\n{3,}/g, "\n\n").trimEnd();
+}
+
+function upsertTicketsMdManagedSection(existingContent, templateContent) {
+  const managedFromTemplate = extractManagedSection(templateContent, TICKETS_MANAGED_START, TICKETS_MANAGED_END);
+  if (!managedFromTemplate) {
+    throw new Error("Template is missing managed TICKETS.md markers.");
+  }
+  const managedSection = injectTicketsManagedMetadata(managedFromTemplate);
+
+  let normalizedExisting = normalizeContent(existingContent);
+  normalizedExisting = stripManagedSection(normalizedExisting, TICKETS_LEGACY_START, TICKETS_LEGACY_END);
+
+  const startIndex = normalizedExisting.indexOf(TICKETS_MANAGED_START);
+  const endIndex = normalizedExisting.indexOf(TICKETS_MANAGED_END);
+
+  if (startIndex >= 0 && endIndex > startIndex) {
+    const before = normalizedExisting.slice(0, startIndex).trimEnd();
+    const after = normalizedExisting.slice(endIndex + TICKETS_MANAGED_END.length).trimStart();
+    return joinSections(before, managedSection, after);
   }
 
-  lines.push(TICKETS_SECTION_END);
-  const managedSection = lines.join("\n").trimEnd();
-  if (!baseContent) {
+  if (!normalizedExisting.trim()) {
     return `${managedSection}\n`;
   }
-  return `${baseContent}\n\n${managedSection}\n`;
+
+  return `${normalizedExisting.trimEnd()}\n\n${managedSection}\n`;
 }
 
 function syncTicketsMd(root, apply) {
@@ -492,7 +593,7 @@ function syncTicketsMd(root, apply) {
     fs.writeFileSync(ticketsDocPath, templateContent);
   }
 
-  if (!exists || apply) {
+  if (apply) {
     const existing = fs.readFileSync(ticketsDocPath, "utf8");
     const next = upsertTicketsMdManagedSection(existing, templateContent);
     if (next !== existing) {
@@ -502,22 +603,27 @@ function syncTicketsMd(root, apply) {
 }
 
 function upsertAgentsSection(existingContent, templateContent) {
-  const normalizedExisting = normalizeContent(existingContent);
-  const section = `${AGENTS_SECTION_START}\n${templateContent.trimEnd()}\n${AGENTS_SECTION_END}`;
-  const startIndex = normalizedExisting.indexOf(AGENTS_SECTION_START);
-  const endIndex = normalizedExisting.indexOf(AGENTS_SECTION_END);
-
-  if (startIndex >= 0 && endIndex > startIndex) {
-    const before = normalizedExisting.slice(0, startIndex).trimEnd();
-    const after = normalizedExisting.slice(endIndex + AGENTS_SECTION_END.length).trimStart();
-    return `${before}\n\n${section}${after ? `\n\n${after}` : ""}\n`;
+  const managedBlock = extractHeadingBlock(templateContent, AGENTS_SECTION_HEADING, 2);
+  if (!managedBlock) {
+    throw new Error("Template is missing the managed AGENTS.md heading block.");
   }
 
-  if (!normalizedExisting.trim()) {
-    return `${section}\n`;
+  const withoutLegacyMarkers = stripManagedSection(
+    normalizeContent(existingContent),
+    AGENTS_LEGACY_SECTION_START,
+    AGENTS_LEGACY_SECTION_END,
+  );
+  const lines = normalizeContent(withoutLegacyMarkers).split("\n");
+  if (findHeadingBlockRange(lines, AGENTS_SECTION_HEADING, 2)) {
+    return replaceHeadingBlock(withoutLegacyMarkers, managedBlock, AGENTS_SECTION_HEADING, 2);
   }
 
-  return `${normalizedExisting.trimEnd()}\n\n${section}\n`;
+  const migratedLegacyH1 = replaceLegacyAgentsH1Block(withoutLegacyMarkers, managedBlock);
+  if (migratedLegacyH1) {
+    return migratedLegacyH1;
+  }
+
+  return replaceHeadingBlock(withoutLegacyMarkers, managedBlock, AGENTS_SECTION_HEADING, 2);
 }
 
 function applyAgentsMdSection(root, templateContent) {
@@ -1176,7 +1282,10 @@ export async function run(argv = process.argv.slice(2)) {
     .command("init")
     .description("Initialize tickets structure")
     .option("--examples", "Generate example tickets and logs")
-    .option("--apply", "Additive TICKETS.md update + AGENTS.md upsert; skip AGENTS_EXAMPLE.md output")
+    .option(
+      "--apply",
+      "Update managed TICKETS.md + AGENTS.md Ticketing Workflow block; skip AGENTS_EXAMPLE.md output",
+    )
     .action(async (options) => {
       process.exitCode = await cmdInit(options);
     });

@@ -4,7 +4,7 @@ This document defines the agent-first in-repo ticketing workflow with explicit o
 
 ## Ownership Boundaries
 
-- Managed Core (may be overwritten): content inside `@picoai/tickets:managed` markers.
+- About TICKETS.md (may be overwritten): content inside `@picoai/tickets:managed` markers.
   - This is where canonical, interoperable system rules live.
   - `npx @picoai/tickets init --apply` may replace this section (marker-scoped update).
 - User-Owned Extensions (safe to customize): content inside `@picoai/tickets:user` markers.
@@ -22,7 +22,7 @@ This document defines the agent-first in-repo ticketing workflow with explicit o
 ---
 
 <!-- @picoai/tickets:managed:start -->
-## Managed Core (May Be Overwritten by `init --apply`)
+## About TICKETS.md (May Be Overwritten by `init --apply`)
 
 _This section mirrors current canonical `TICKETS.md` content to preserve behavior and compatibility._
 

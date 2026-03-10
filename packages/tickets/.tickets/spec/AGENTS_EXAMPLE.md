@@ -1,10 +1,10 @@
-# Ticketing Workflow
-
 This file is an example for agent harnesses. Rename or copy it to `AGENTS.md` if your tooling reads it.
 
 The purpose of this bootstrap is to ensure an agent loads the canonical workflow from `TICKETS.md` before doing any work.
 
-## Required behavior
+## Ticketing Workflow
+
+### Required Behavior
 - First action: open and read `TICKETS.md` (canonical ticket workflow and rules).
 - First response: briefly confirm understanding of the ticketing system described in `TICKETS.md` before starting any implementation work.
 - Use the repo-local CLI (`npx @picoai/tickets`) as the integration surface for tickets and logs.
@@ -12,5 +12,5 @@ The purpose of this bootstrap is to ensure an agent loads the canonical workflow
 - When logging via the CLI: use `npx @picoai/tickets log --machine` so logs are strictly structured.
 - Respect `assignment.mode` and any `agent_limits` in the ticket/config.
 
-## Bootstrapping TICKETS.md
+### Bootstrapping TICKETS.md
 - If `.tickets/` or `TICKETS.md` are missing, run `npx @picoai/tickets init`.

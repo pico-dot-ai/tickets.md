@@ -388,27 +388,25 @@ created_at: 2026-01-29T18:42:10Z
             <div className="quickstartGrid">
               <div className="quickstartCol">
                 <div className="quickstartPane">
-                  <div className="qsStepTitle">Clone the repo</div>
-                  <div className="qsStepDesc">
-                    Clone the official repo and move into it to run the commands below.
-                  </div>
-                  <CopyBlock command="git clone https://github.com/pico-dot-ai/tickets.md.git" />
-                  <CopyBlock command="cd tickets.md" />
-
                   <div className="qsStepTitle">Install the package</div>
                   <div className="qsStepDesc">
-                    Add the npm package in the repo where you want to use the ticketing CLI.
+                    Add the package in the repo where you want to run Agent-First In-Repo Ticketing.
                   </div>
                   <CopyBlock command="npm install @picoai/tickets" />
 
-                  <div className="qsStepTitle">Initialize the repo</div>
+                  <div className="qsStepTitle">Initialize in your repo</div>
                   <div className="qsStepDesc">
-                    Initialize the in-repo ticket structure and generate the default templates.
+                    Bootstrap the ticket system assets from the package templates.
                   </div>
                   <CopyBlock command="npx @picoai/tickets init" />
+
+                  <div className="qsStepTitle">Apply managed docs updates (optional)</div>
+                  <div className="qsStepDesc">
+                    Use apply mode to update managed sections while preserving user-owned content.
+                  </div>
+                  <CopyBlock command="npx @picoai/tickets init --apply" />
                   <div className="qsNote">
-                    Add <code>--examples</code> to generate sample tickets, or <code>--apply</code> to upsert the
-                    managed <code>AGENTS.md</code> section directly.
+                    Add <code>--examples</code> to generate sample tickets.
                   </div>
 
                   <div className="qsStepTitle">Create a ticket</div>
@@ -426,7 +424,7 @@ created_at: 2026-01-29T18:42:10Z
                     <pre className="codeBlockCode">
                       <code>{`/.tickets/
 TICKETS.md
-AGENTS_EXAMPLE.md
+AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
 /.tickets/spec/version/`}</code>
                     </pre>
                   </div>
