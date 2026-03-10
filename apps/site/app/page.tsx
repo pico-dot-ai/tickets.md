@@ -416,10 +416,12 @@ created_at: 2026-01-29T18:42:10Z
                   </div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
-                      <code>{`TICKETS.md
-AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
-/.tickets/
-  /spec/version/`}</code>
+                      <code>{`.
+├── TICKETS.md
+├── AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
+└── .tickets/
+    └── spec/
+        └── version/`}</code>
                     </pre>
                   </div>
                   <div className="qsCardTitle">What gets generated when you create a ticket</div>
