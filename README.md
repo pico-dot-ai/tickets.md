@@ -90,6 +90,11 @@ npx @picoai/tickets new --title "Short title"
 npx @picoai/tickets validate
 ```
 
+## CLI Command Reference
+
+For the complete `@picoai/tickets` command and option documentation, see:
+- `packages/tickets/README.md` (`Command Reference` section)
+
 ## Canonical docs
 
 - Contract: `TICKETS.md`

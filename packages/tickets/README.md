@@ -80,16 +80,141 @@ npx @picoai/tickets new --title "Short title"
 npx @picoai/tickets validate
 ```
 
-## Commands
+## Command Reference
 
-- `init`
-- `new`
-- `validate`
-- `repair`
-- `status`
-- `log`
-- `list`
-- `graph`
+Use `npx @picoai/tickets <command> --help` for full command help.
+
+### `init`
+
+Initialize ticketing structure and templates.
+
+```bash
+npx @picoai/tickets init [--examples] [--apply]
+```
+
+- `--examples`: generate example tickets and logs.
+- `--apply`: update managed `TICKETS.md` + `AGENTS.md` sections and skip `AGENTS_EXAMPLE.md` output.
+
+### `new`
+
+Create a new ticket.
+
+```bash
+npx @picoai/tickets new --title "<title>" [options]
+```
+
+Options:
+- `--status <status>` (`todo|doing|blocked|done|canceled`, default `todo`)
+- `--priority <priority>` (`low|medium|high|critical`)
+- `--label <label>` (repeatable)
+- `--assignment-mode <mode>` (`human_only|agent_only|mixed`)
+- `--assignment-owner <owner>`
+- `--dependency <ticketId>` (repeatable)
+- `--block <ticketId>` (repeatable)
+- `--related <ticketId>` (repeatable)
+- `--iteration-timebox-minutes <minutes>`
+- `--max-iterations <count>`
+- `--max-tool-calls <count>`
+- `--checkpoint-every-minutes <minutes>`
+- `--verification-command <command>` (repeatable)
+- `--created-at <timestamp>`
+
+### `validate`
+
+Validate ticket files and logs.
+
+```bash
+npx @picoai/tickets validate [options]
+```
+
+Options:
+- `--ticket <ticket>`
+- `--issues` (machine-readable issues/repairs output)
+- `--output <file>` (write issues report to file)
+- `--all-fields` (include optional front-matter validation)
+
+### `repair`
+
+Repair tickets from current validation state or an issues file.
+
+```bash
+npx @picoai/tickets repair [options]
+```
+
+Options:
+- `--ticket <ticket>`
+- `--all`
+- `--issues-file <file>`
+- `--interactive`
+- `--non-interactive`
+- `--all-fields`
+
+### `status`
+
+Update ticket status.
+
+```bash
+npx @picoai/tickets status --ticket <ticket> --status <status> [options]
+```
+
+Options:
+- `--status <status>` (`todo|doing|blocked|done|canceled`)
+- `--log`
+- `--run-id <runId>`
+- `--run-started <runStarted>`
+
+### `log`
+
+Append a run log entry.
+
+```bash
+npx @picoai/tickets log --ticket <ticket> --actor-type <human|agent> --actor-id <id> --summary "<text>" [options]
+```
+
+Options:
+- `--run-id <runId>`
+- `--run-started <runStarted>`
+- `--machine`
+- `--changes <files...>`
+- `--decisions <decisions...>`
+- `--next-steps <nextSteps...>`
+- `--blockers <blockers...>`
+- `--tickets-created <tickets...>`
+- `--created-from <ticketId>`
+- `--context-carried-over <items...>`
+- `--verification-commands <commands...>`
+- `--verification-results <results>`
+
+### `list`
+
+List tickets with optional filters.
+
+```bash
+npx @picoai/tickets list [options]
+```
+
+Options:
+- `--status <status>`
+- `--priority <priority>`
+- `--mode <mode>`
+- `--owner <owner>`
+- `--label <label>`
+- `--text <text>`
+- `--json`
+
+### `graph`
+
+Generate dependency graph output.
+
+```bash
+npx @picoai/tickets graph [options]
+```
+
+Options:
+- `--ticket <ticket>`
+- `--format <format>` (`mermaid|dot|json`, default `mermaid`)
+- `--output <file>`
+- `--related` / `--no-related`
 
 ## Assets shipped with this package
 

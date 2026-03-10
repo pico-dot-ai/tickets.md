@@ -399,12 +399,6 @@ created_at: 2026-01-29T18:42:10Z
                     Bootstrap the ticket system assets from the package templates.
                   </div>
                   <CopyBlock command="npx @picoai/tickets init" />
-
-                  <div className="qsStepTitle">Apply managed docs updates (optional)</div>
-                  <div className="qsStepDesc">
-                    Use apply mode to update managed sections while preserving user-owned content.
-                  </div>
-                  <CopyBlock command="npx @picoai/tickets init --apply" />
                   <div className="qsNote">
                     Add <code>--examples</code> to generate sample tickets.
                   </div>
@@ -428,8 +422,6 @@ AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
 /.tickets/spec/version/`}</code>
                     </pre>
                   </div>
-                  <div className="qsNote">With <code>--examples</code>: 7 sample tickets + logs.</div>
-
                   <div className="qsCardTitle">What gets generated when you create a ticket</div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
