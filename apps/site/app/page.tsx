@@ -424,11 +424,35 @@ created_at: 2026-01-29T18:42:10Z
         └── version/`}</code>
                     </pre>
                   </div>
-                  <div className="qsCardTitle">What gets generated when you create a ticket</div>
+                  <div className="qsCardTitle">Anatomy of a ticket</div>
+                  <div className="qsStepDesc">
+                    Each ticket gets its own folder, a Markdown definition, and append-only run logs.
+                  </div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
-                      <code>{`/.tickets/<ticket-id>/ticket.md
-/.tickets/<ticket-id>/logs/`}</code>
+                      <code>{`.tickets/
+└── <ticket-id>/
+    ├── ticket.md
+    └── logs/`}</code>
+                    </pre>
+                  </div>
+                  <div className="qsStepDesc">
+                    Ticket definitions are written in Markdown with YAML front matter and required sections:
+                  </div>
+                  <div className="codeBlock">
+                    <pre className="codeBlockCode">
+                      <code>{`---
+id: <uuidv7>
+version: 1
+version_url: "version/20260205-tickets-spec.md"
+title: "Short title"
+status: todo
+created_at: 2026-01-29T18:42:10Z
+---
+# Ticket
+## Description
+## Acceptance Criteria
+## Verification`}</code>
                     </pre>
                   </div>
                 </div>
