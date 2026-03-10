@@ -370,6 +370,10 @@ a {
   padding: 26px 6px 0;
 }
 
+#how {
+  scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 92px);
+}
+
 .goalsWrap {
   max-width: 768px;
   margin: 0 auto;
@@ -763,6 +767,9 @@ a {
   }
   .section {
     padding: 0 6px;
+  }
+  #how {
+    scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 76px);
   }
   .goalsWrap {
     max-width: 100%;

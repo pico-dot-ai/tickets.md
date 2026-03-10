@@ -87,11 +87,16 @@ export default function HomePage() {
     {
       title: "Repo layout",
       footer: "Stable ticket definitions. Append-only run logs.",
-      code: `/.tickets/
-  <ticket-id>/
-    ticket.md
-    logs/
-      <run>.jsonl`
+      code: `.
+├── TICKETS.md
+├── AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
+└── .tickets/
+    ├── spec/
+    │   └── version/
+    └── <ticket-id>/
+        ├── ticket.md
+        └── logs/
+            └── <run>.jsonl`
     },
     {
       title: "CLI touchpoints",
@@ -363,7 +368,7 @@ created_at: 2026-01-29T18:42:10Z
               </svg>
             </div>
             <div className="listGridText">
-              A set of simple CLI tools provides a consistent way for agents and humans
+              A set of <strong>simple CLI tools</strong> provides a consistent way for agents and humans
               to easily work with tickets.
             </div>
           </div>
@@ -410,9 +415,10 @@ created_at: 2026-01-29T18:42:10Z
 
               <div className="quickstartCol">
                 <div className="quickstartPane">
-                  <div className="qsCardTitle">Understanding Tickets Structure</div>
+                  <div className="qsCardTitle">Anatomy of a ticket</div>
                   <div className="qsStepDesc">
                     Initializing tickets in your repo will write the key files needed to manage ticket tracking.
+                    {" "}Each ticket gets its own folder, a human readable Markdown definition, and append-only JSONL structured logs.
                   </div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
@@ -420,39 +426,12 @@ created_at: 2026-01-29T18:42:10Z
 ├── TICKETS.md
 ├── AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
 └── .tickets/
-    └── spec/
-        └── version/`}</code>
-                    </pre>
-                  </div>
-                  <div className="qsCardTitle">Anatomy of a ticket</div>
-                  <div className="qsStepDesc">
-                    Each ticket gets its own folder, a Markdown definition, and append-only run logs.
-                  </div>
-                  <div className="codeBlock">
-                    <pre className="codeBlockCode">
-                      <code>{`.tickets/
-└── <ticket-id>/
-    ├── ticket.md
-    └── logs/`}</code>
-                    </pre>
-                  </div>
-                  <div className="qsStepDesc">
-                    Ticket definitions are written in Markdown with YAML front matter and required sections:
-                  </div>
-                  <div className="codeBlock">
-                    <pre className="codeBlockCode">
-                      <code>{`---
-id: <uuidv7>
-version: 1
-version_url: "version/20260205-tickets-spec.md"
-title: "Short title"
-status: todo
-created_at: 2026-01-29T18:42:10Z
----
-# Ticket
-## Description
-## Acceptance Criteria
-## Verification`}</code>
+    ├── spec/
+    │   └── version/
+    └── <ticket-id>/
+        ├── ticket.md
+        └── logs/
+            └── <run>.jsonl`}</code>
                     </pre>
                   </div>
                 </div>
