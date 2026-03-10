@@ -12,7 +12,7 @@ blocks:
 - 019c108d-4fb7-7596-941a-c1b7d2bc1fd8
 verification:
   commands:
-  - ./tkt_md/scripts/tickets validate
+  - npx @picoai/tickets validate
 ---
 # Ticket
 
@@ -25,4 +25,4 @@ Plan release window and rollout steps.
 - [ ] Comms ready
 
 ## Verification
-- ./tkt_md/scripts/tickets validate
+- npx @picoai/tickets validate

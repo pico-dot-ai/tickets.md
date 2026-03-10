@@ -11,7 +11,7 @@ dependencies:
 - 019c108d-4fb3-7fc1-a1d4-c57c6f57e0e1
 verification:
   commands:
-  - pytest tests/integration
+  - npm test
 ---
 # Ticket
 
@@ -24,4 +24,4 @@ Add end-to-end coverage for Alpha flows.
 - [ ] Regression suite green
 
 ## Verification
-- pytest tests/integration
+- npm test

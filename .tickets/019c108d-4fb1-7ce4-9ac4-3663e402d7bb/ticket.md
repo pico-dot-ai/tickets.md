@@ -23,8 +23,8 @@ agent_limits:
   checkpoint_every_minutes: 5
 verification:
   commands:
-  - python -m pytest
-  - ./tkt_md/scripts/tickets validate
+  - npm test
+  - npx @picoai/tickets validate
 ---
 # Ticket
 
@@ -37,4 +37,4 @@ Track delivery of Feature Alpha and coordinate child tickets.
 - [ ] Release plan agreed
 
 ## Verification
-- ./tkt_md/scripts/tickets validate
+- npx @picoai/tickets validate

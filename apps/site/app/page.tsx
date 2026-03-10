@@ -96,8 +96,8 @@ export default function HomePage() {
     {
       title: "CLI touchpoints",
       footer: "Validate, log runs, and keep history local.",
-      code: `./tkt_md/scripts/tickets validate
-./tkt_md/scripts/tickets log --ticket <id> --actor-type agent --summary "..." --machine`
+      code: `npx @picoai/tickets validate
+npx @picoai/tickets log --ticket <id> --actor-type agent --summary "..." --machine`
     },
     {
       title: "Ticket anatomy",
@@ -395,30 +395,27 @@ created_at: 2026-01-29T18:42:10Z
                   <CopyBlock command="git clone https://github.com/pico-dot-ai/tickets.md.git" />
                   <CopyBlock command="cd tickets.md" />
 
-                  <div className="qsStepTitle">Copy the CLI into your repo</div>
+                  <div className="qsStepTitle">Install the package</div>
                   <div className="qsStepDesc">
-                    If you want to use the CLI in another project, copy the folders in before you init.
+                    Add the npm package in the repo where you want to use the ticketing CLI.
                   </div>
-                  <CopyBlock command="cp -R scripts tickets /path/to/your/repo/" />
-
-                  <div className="qsStepTitle">Install CLI dependencies</div>
-                  <div className="qsStepDesc">
-                    Install the two Python dependencies the tickets CLI uses for YAML and UUIDv7s.
-                  </div>
-                  <CopyBlock command='python3 -m pip install "PyYAML>=6.0" "uuid6>=2024.1.25"' />
+                  <CopyBlock command="npm install @picoai/tickets" />
 
                   <div className="qsStepTitle">Initialize the repo</div>
                   <div className="qsStepDesc">
                     Initialize the in-repo ticket structure and generate the default templates.
                   </div>
-                  <CopyBlock command="./tkt_md/scripts/tickets init" />
-                  <div className="qsNote">Add <code>--examples</code> to generate sample tickets.</div>
+                  <CopyBlock command="npx @picoai/tickets init" />
+                  <div className="qsNote">
+                    Add <code>--examples</code> to generate sample tickets, or <code>--apply</code> to upsert the
+                    managed <code>AGENTS.md</code> section directly.
+                  </div>
 
                   <div className="qsStepTitle">Create a ticket</div>
                   <div className="qsStepDesc">
                     Create your first ticket; the CLI prints the UUIDv7 and creates its folder.
                   </div>
-                  <CopyBlock command='./tkt_md/scripts/tickets new --title "Short title"' />
+                  <CopyBlock command='npx @picoai/tickets new --title "Short title"' />
                 </div>
               </div>
 
@@ -429,8 +426,8 @@ created_at: 2026-01-29T18:42:10Z
                     <pre className="codeBlockCode">
                       <code>{`/.tickets/
 TICKETS.md
-tkt_md/AGENTS_EXAMPLE.md
-tkt_md/version/`}</code>
+AGENTS_EXAMPLE.md
+/.tickets/spec/version/`}</code>
                     </pre>
                   </div>
                   <div className="qsNote">With <code>--examples</code>: 7 sample tickets + logs.</div>

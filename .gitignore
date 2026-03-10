@@ -211,9 +211,15 @@ __marimo__/
 
 # Node / Next.js
 node_modules/
+**/node_modules/
 .next/
+**/.next/
 out/
+**/out/
+.turbo/
+.pnpm-store/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .vercel/
+*.tgz

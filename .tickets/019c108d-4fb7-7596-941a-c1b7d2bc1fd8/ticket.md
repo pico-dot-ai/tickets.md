@@ -13,7 +13,7 @@ related:
 - 019c108d-4fb4-7c84-a97d-9ea3aaa56fe5
 verification:
   commands:
-  - pytest tests/regression
+  - npm test
 ---
 # Ticket
 
@@ -26,4 +26,4 @@ Fix regression uncovered in integration tests.
 - [ ] No new failures
 
 ## Verification
-- pytest tests/regression
+- npm test

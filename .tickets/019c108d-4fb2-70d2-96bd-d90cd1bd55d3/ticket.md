@@ -23,7 +23,7 @@ agent_limits:
   checkpoint_every_minutes: 5
 verification:
   commands:
-  - pytest tests/api
+  - npm test
 ---
 # Ticket
 
@@ -36,5 +36,5 @@ Implement service endpoints and data model for Feature Alpha.
 - [ ] Integration tests pass
 
 ## Verification
-- pytest tests/api
+- npm test
 - curl http://localhost:8000/health

@@ -1,6 +1,6 @@
-# TICKETS.md - Agent-First In-Repo Ticketing
+# TICKETS_v2.md - Agent-First In-Repo Ticketing (Proposed Replacement)
 
-This document defines the agent-first in-repo ticketing workflow with explicit ownership boundaries.
+This document is a full replacement draft for `TICKETS.md` with parity to the current canonical content, plus explicit ownership boundaries.
 
 ## Ownership Boundaries
 
