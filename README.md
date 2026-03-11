@@ -1,10 +1,34 @@
-# tickets.md Monorepo
+# TICKETS.md
 
 ## About TICKETS.md
 
-This repository uses a repo-native ticketing system designed for **parallel, long-running agentic work** and normal human collaboration, without relying on external services or internet access.
+This repository specifies a repo-native ticketing system designed for **parallel, long-running agentic work** and normal human collaboration, without relying on external services or internet access.
 
 **TICKETS.md** explains the workflow, file formats, and required tool usage for both humans and agents. If there is ever a conflict between this file and other docs, follow this file.
+
+## What this system is
+
+- A lightweight, Markdown-first ticket format stored under `/.tickets/` in consumer repos.
+- A merge-friendly history model: **append-only JSONL run logs**, one file per run, per ticket.
+- A repo-local CLI (`npx @picoai/tickets`) that is the **single integration surface** for humans, agents, and IDE/agentic tooling.
+
+## What this is trying to do
+
+Parallel, long-running agentic work fails in predictable ways:
+- Agents lose context across runs/sandboxes.
+- Ticket state can drift across branches before merge (eventual consistency).
+- Shared mutable log files are merge-conflict hotspots.
+- Agents can loop without clear done criteria or verification steps.
+
+This system addresses those problems with stable `ticket.md` files, merge-friendly per-run logs, and explicit acceptance + verification + bounded iteration guidance.
+
+## Spec Version
+
+- `version`: 1
+- `version_url`: `version/20260205-tickets-spec.md`
+- Canonical source in this repo: `packages/tickets/.tickets/spec/version/20260205-tickets-spec.md`
+
+Version definitions live under `packages/tickets/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
 
 ## Quickstart: Initialize a Repo
 
@@ -30,36 +54,15 @@ npx @picoai/tickets init --apply
 - creates or updates the `## Ticketing Workflow` block in root `AGENTS.md`
 - does not create `AGENTS_EXAMPLE.md` when applying directly to `AGENTS.md`
 
-## Spec Version
-
-- `version`: 1
-- `version_url`: `version/20260205-tickets-spec.md`
-- Canonical source in this repo: `packages/tickets/.tickets/spec/version/20260205-tickets-spec.md`
-
-Version definitions live under `packages/tickets/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
-
-## What this system is
-
-- A lightweight, Markdown-first ticket format stored under `/.tickets/` in consumer repos.
-- A merge-friendly history model: **append-only JSONL run logs**, one file per run, per ticket.
-- A repo-local CLI (`npx @picoai/tickets`) that is the **single integration surface** for humans, agents, and IDE/agentic tooling.
-
-## What this is trying to do
-
-Parallel, long-running agentic work fails in predictable ways:
-- Agents lose context across runs/sandboxes.
-- Ticket state can drift across branches before merge (eventual consistency).
-- Shared mutable log files are merge-conflict hotspots.
-- Agents can loop without clear done criteria or verification steps.
-
-This system addresses those problems with stable `ticket.md` files, merge-friendly per-run logs, and explicit acceptance + verification + bounded iteration guidance.
-
 ## Repository structure
 
 ```text
-/apps/site                 # Next.js website
-/packages/tickets       # npm package (@picoai/tickets)
-/TICKETS.md                # canonical ticketing contract
+.
+├── TICKETS.md
+├── apps/
+│   └── site/
+└── packages/
+    └── tickets/
 ```
 
 ## Workspaces
