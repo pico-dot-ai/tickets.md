@@ -11,6 +11,7 @@
     "start": "npm run start --workspace @picoai/tickets-site",
     "test": "npm run test --workspace @picoai/tickets",
     "test:cli": "npm run test:cli --workspace @picoai/tickets",
+    "release:status": "npm run release:status --workspace @picoai/tickets",
     "tickets": "npm run tickets --workspace @picoai/tickets --"
   }
 }

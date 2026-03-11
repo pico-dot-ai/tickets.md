@@ -24,11 +24,27 @@ This system addresses those problems with stable `ticket.md` files, merge-friend
 
 ## Spec Version
 
-- `version`: 1
-- `version_url`: `version/20260205-tickets-spec.md`
-- Canonical source in this repo: `packages/tickets/.tickets/spec/version/20260205-tickets-spec.md`
+- `version`: 2
+- `version_url`: `version/20260311-tickets-spec.md`
+- Canonical source in this repo: `packages/tickets/.tickets/spec/version/20260311-tickets-spec.md`
 
 Version definitions live under `packages/tickets/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
+
+## Release Provenance
+
+- Latest npm release: `@picoai/tickets`
+- Published from commit: `74b0378`
+- Append-only release ledger: `packages/tickets/release-history.json`
+
+Check current release posture locally:
+
+```bash
+npm run release:status
+```
+
+Recommended process:
+- after an npm publish succeeds, append a new entry to `packages/tickets/release-history.json`
+- use `npm run release:status` to see whether HEAD is ahead of the last recorded npm release and whether the package version still needs a bump
 
 ## Quickstart: Initialize a Repo
 

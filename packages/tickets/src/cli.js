@@ -40,6 +40,52 @@ function hasErrors(issues) {
   return issues.some((issue) => issue.severity === "error");
 }
 
+function isValidActorType(value) {
+  return ["human", "agent"].includes(value);
+}
+
+function resolveActorId(explicitActorId) {
+  const candidate = explicitActorId ?? process.env.TICKETS_ACTOR_ID;
+  if (typeof candidate === "string" && candidate.trim()) {
+    return candidate.trim();
+  }
+
+  const localUser = process.env.USER ?? process.env.USERNAME;
+  if (typeof localUser === "string" && localUser.trim()) {
+    return `@${localUser.trim()}`;
+  }
+
+  return "unknown";
+}
+
+function resolveActorType(explicitActorType, actorId) {
+  const candidate = explicitActorType ?? process.env.TICKETS_ACTOR_TYPE;
+  if (typeof candidate === "string" && candidate.trim()) {
+    if (!isValidActorType(candidate.trim())) {
+      throw new Error("Invalid actor type. Use one of: human, agent");
+    }
+    return candidate.trim();
+  }
+
+  if (typeof actorId === "string") {
+    if (actorId.startsWith("agent:")) {
+      return "agent";
+    }
+    if (actorId.startsWith("@")) {
+      return "human";
+    }
+  }
+
+  return "human";
+}
+
+function normalizeContextItems(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values.map((value) => String(value).trim()).filter(Boolean);
+}
+
 function printIssues(issues) {
   for (const issue of issues) {
     const location = issue.ticket_path ?? issue.log ?? "";
@@ -65,11 +111,14 @@ function buildRepairsFromIssues(issues, options = {}) {
   for (const issue of issues) {
     const code = issue.code;
     const ticketPath = issue.ticket_path;
-    if (!ticketPath) {
+    const logLocation = issue.log;
+    const logPath = logLocation ? String(logLocation).replace(/:\d+$/, "") : null;
+    if (!ticketPath && !logPath) {
       continue;
     }
 
-    const key = `${code}:${ticketPath}`;
+    const targetPath = ticketPath ?? logPath;
+    const key = `${code}:${targetPath}`;
     if (seen.has(key)) {
       continue;
     }
@@ -85,10 +134,31 @@ function buildRepairsFromIssues(issues, options = {}) {
       id: nextId,
       enabled: false,
       issue_ids: [issue.id ?? ""],
-      ticket_path: ticketPath,
     };
+    if (ticketPath) {
+      base.ticket_path = ticketPath;
+    }
+    if (logPath) {
+      base.log_path = logPath;
+    }
 
-    if (code === "MISSING_SECTION") {
+    if (["LOG_EVENT_TYPE_MISSING", "LOG_EVENT_TYPE_INVALID"].includes(code)) {
+      repairs.push({
+        ...base,
+        safe: true,
+        action: "set_log_event_type",
+        params: {},
+        optional: false,
+      });
+    } else if (["CONTEXT_INVALID", "CONTEXT_EMPTY", "CONTEXT_ENTRY_INVALID", "CONTEXT_MISSING"].includes(code)) {
+      repairs.push({
+        ...base,
+        safe: true,
+        action: "normalize_log_context",
+        params: {},
+        optional: false,
+      });
+    } else if (code === "MISSING_SECTION") {
       repairs.push({ ...base, safe: true, action: "add_sections", params: {}, optional: false });
     } else if (["VERSION_MISSING", "VERSION_INVALID"].includes(code)) {
       repairs.push({
@@ -678,6 +748,7 @@ function generateExampleTickets() {
       logs: [
         {
           summary: "Epic created and split into child tickets.",
+          context: ["Parent planning context for Feature Alpha", "Child tickets were split for parallel execution"],
           tickets_created: ["backend", "frontend", "testing", "docs"],
           next_steps: ["Coordinate release window", "Monitor blockers"],
         },
@@ -709,7 +780,7 @@ function generateExampleTickets() {
           summary: "Scaffolded API and outlined endpoints.",
           decisions: ["Using UUID primary keys", "Respond with JSON:API style"],
           created_from: "parent",
-          context_carried_over: ["Acceptance criteria from parent", "Release target"],
+          context: ["Acceptance criteria from parent", "Release target"],
         },
       ],
     },
@@ -732,7 +803,7 @@ function generateExampleTickets() {
           summary: "Waiting on API responses to stabilize.",
           blockers: ["Backend contract not finalized"],
           created_from: "parent",
-          context_carried_over: ["Design mocks v1.2", "API schema draft"],
+          context: ["Design mocks v1.2", "API schema draft"],
         },
       ],
     },
@@ -754,7 +825,7 @@ function generateExampleTickets() {
           summary: "Outlined E2E scenarios to automate.",
           next_steps: ["Set up test data fixtures"],
           created_from: "parent",
-          context_carried_over: ["Frontend flow chart", "Backend contract v1"],
+          context: ["Frontend flow chart", "Backend contract v1"],
         },
       ],
     },
@@ -776,7 +847,7 @@ function generateExampleTickets() {
           summary: "Preparing outline; waiting on test results.",
           blockers: ["Integration tests pending"],
           created_from: "parent",
-          context_carried_over: ["Feature overview", "Known limitations"],
+          context: ["Feature overview", "Known limitations"],
         },
       ],
     },
@@ -797,6 +868,7 @@ function generateExampleTickets() {
       logs: [
         {
           summary: "Drafted release checklist; waiting on test green.",
+          context: ["Release checklist draft", "Waiting on integration test completion"],
           next_steps: ["Book release window"],
         },
       ],
@@ -818,6 +890,7 @@ function generateExampleTickets() {
       logs: [
         {
           summary: "Blocked until backend fix lands.",
+          context: ["Regression repro identified", "Awaiting backend deployment before retry"],
           blockers: ["Awaiting backend deployment"],
         },
       ],
@@ -886,16 +959,17 @@ function generateExampleTickets() {
         actor_type: "agent",
         actor_id: "tickets-init",
         summary: logSpec.summary,
+        event_type: "work",
         written_by: "tickets",
       };
 
       for (const key of [
+        "context",
         "decisions",
         "next_steps",
         "blockers",
         "tickets_created",
         "created_from",
-        "context_carried_over",
       ]) {
         if (!(key in logSpec)) {
           continue;
@@ -935,8 +1009,11 @@ async function cmdInit(options) {
   const versionDir = path.join(repoBaseDir, "version");
   ensureDir(versionDir);
 
-  const specPath = path.join(versionDir, "20260205-tickets-spec.md");
-  writeTemplateFile(specPath, path.join(".tickets", "spec", "version", "20260205-tickets-spec.md"), apply);
+  const currentSpecPath = path.join(versionDir, "20260311-tickets-spec.md");
+  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260311-tickets-spec.md"), apply);
+
+  const previousSpecPath = path.join(versionDir, "20260205-tickets-spec.md");
+  writeTemplateFile(previousSpecPath, path.join(".tickets", "spec", "version", "20260205-tickets-spec.md"), apply);
 
   const proposedPath = path.join(versionDir, "PROPOSED-tickets-spec.md");
   writeTemplateFile(proposedPath, path.join(".tickets", "spec", "version", "PROPOSED-tickets-spec.md"), apply);
@@ -1085,27 +1162,36 @@ async function cmdValidate(options) {
 async function cmdStatus(options) {
   const ticketPath = resolveTicketPath(options.ticket);
   const [frontMatter, body] = loadTicket(ticketPath);
+  const previousStatus = frontMatter.status;
+  const actorId = resolveActorId(options.actorId);
+  const actorType = resolveActorType(options.actorType, actorId);
+  const context = normalizeContextItems(options.context);
 
   frontMatter.status = options.status;
   writeTicket(ticketPath, frontMatter, body);
 
-  if (options.log) {
-    const runId = options.runId || newUuidv7();
-    const runStarted = (options.runStarted || isoBasic(nowUtc())).replaceAll(" ", "");
-    const entry = {
-      version: FORMAT_VERSION,
-      version_url: FORMAT_VERSION_URL,
-      ts: iso8601(nowUtc()),
-      run_started: runStarted,
-      actor_type: "human",
-      actor_id: "status-change",
-      summary: `Status set to ${options.status}`,
-      written_by: "tickets",
-    };
-
-    const logPath = path.join(path.dirname(ticketPath), "logs", `${runStarted}-${runId}.jsonl`);
-    appendJsonl(logPath, entry);
+  const runId = options.runId || newUuidv7();
+  const runStarted = (options.runStarted || isoBasic(nowUtc())).replaceAll(" ", "");
+  const entry = {
+    version: FORMAT_VERSION,
+    version_url: FORMAT_VERSION_URL,
+    ts: iso8601(nowUtc()),
+    run_started: runStarted,
+    actor_type: actorType,
+    actor_id: actorId,
+    summary:
+      previousStatus === options.status
+        ? `Status reaffirmed as ${options.status}`
+        : `Status changed from ${previousStatus ?? "unknown"} to ${options.status}`,
+    event_type: "status",
+    written_by: "tickets",
+  };
+  if (context.length > 0) {
+    entry.context = context;
   }
+
+  const logPath = path.join(path.dirname(ticketPath), "logs", `${runStarted}-${runId}.jsonl`);
+  appendJsonl(logPath, entry);
 
   return 0;
 }
@@ -1114,16 +1200,26 @@ async function cmdLog(options) {
   const ticketPath = resolveTicketPath(options.ticket);
   const runId = options.runId || newUuidv7();
   const runStarted = (options.runStarted || isoBasic(nowUtc())).replaceAll(" ", "");
+  const actorId = resolveActorId(options.actorId);
+  const actorType = resolveActorType(options.actorType, actorId);
+  const context = normalizeContextItems(options.context);
+  if (options.machine && context.length === 0) {
+    throw new Error("Machine-written work logs require at least one --context item");
+  }
 
   const entry = {
     version: FORMAT_VERSION,
     version_url: FORMAT_VERSION_URL,
     ts: iso8601(nowUtc()),
     run_started: runStarted,
-    actor_type: options.actorType,
-    actor_id: options.actorId,
+    actor_type: actorType,
+    actor_id: actorId,
     summary: options.summary,
+    event_type: "work",
   };
+  if (context.length > 0) {
+    entry.context = context;
+  }
 
   if (options.machine) {
     entry.written_by = "tickets";
@@ -1145,9 +1241,6 @@ async function cmdLog(options) {
   }
   if (options.createdFrom) {
     entry.created_from = options.createdFrom;
-  }
-  if (options.contextCarriedOver?.length) {
-    entry.context_carried_over = options.contextCarriedOver;
   }
   if (options.verificationCommands?.length || options.verificationResults) {
     entry.verification = {
@@ -1226,6 +1319,24 @@ async function cmdRepair(options) {
         autoEnableSafe: !options.interactive,
       }),
     );
+
+    const logsDir = path.join(path.dirname(ticketPath), "logs");
+    if (!fs.existsSync(logsDir)) {
+      continue;
+    }
+    const logFiles = fs
+      .readdirSync(logsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
+      .map((entry) => path.join(logsDir, entry.name))
+      .sort((a, b) => a.localeCompare(b));
+    for (const logFile of logFiles) {
+      repairs.push(
+        ...buildRepairsFromIssues(validateRunLog(logFile, false), {
+          includeOptional: options.allFields,
+          autoEnableSafe: !options.interactive,
+        }),
+      );
+    }
   }
 
   const changes = options.interactive
@@ -1364,17 +1475,24 @@ export async function run(argv = process.argv.slice(2)) {
     .description("Update ticket status")
     .requiredOption("--ticket <ticket>")
     .requiredOption("--status <status>")
-    .option("--log", "Write a status-change log entry")
+    .option("--actor-type <actorType>")
+    .option("--actor-id <actorId>")
+    .option("--context <items...>")
     .option("--run-id <runId>")
     .option("--run-started <runStarted>")
     .action(async (options) => {
       if (!STATUS_VALUES.includes(options.status)) {
         throw new Error(`Invalid --status. Use one of: ${STATUS_VALUES.join(", ")}`);
       }
+      if (options.actorType && !isValidActorType(options.actorType)) {
+        throw new Error("Invalid --actor-type. Use one of: human, agent");
+      }
       process.exitCode = await cmdStatus({
         ticket: options.ticket,
         status: options.status,
-        log: Boolean(options.log),
+        actorType: options.actorType,
+        actorId: options.actorId,
+        context: options.context,
         runId: options.runId,
         runStarted: options.runStarted,
       });
@@ -1386,8 +1504,8 @@ export async function run(argv = process.argv.slice(2)) {
     .requiredOption("--ticket <ticket>")
     .option("--run-id <runId>")
     .option("--run-started <runStarted>")
-    .requiredOption("--actor-type <actorType>")
-    .requiredOption("--actor-id <actorId>")
+    .option("--actor-type <actorType>")
+    .option("--actor-id <actorId>")
     .requiredOption("--summary <summary>")
     .option("--machine")
     .option("--changes <files...>")
@@ -1396,11 +1514,11 @@ export async function run(argv = process.argv.slice(2)) {
     .option("--blockers <blockers...>")
     .option("--tickets-created <tickets...>")
     .option("--created-from <ticketId>")
-    .option("--context-carried-over <items...>")
+    .option("--context <items...>")
     .option("--verification-commands <commands...>")
     .option("--verification-results <results>")
     .action(async (options) => {
-      if (!["human", "agent"].includes(options.actorType)) {
+      if (options.actorType && !isValidActorType(options.actorType)) {
         throw new Error("Invalid --actor-type. Use one of: human, agent");
       }
       process.exitCode = await cmdLog({
@@ -1417,7 +1535,7 @@ export async function run(argv = process.argv.slice(2)) {
         blockers: options.blockers,
         ticketsCreated: options.ticketsCreated,
         createdFrom: options.createdFrom,
-        contextCarriedOver: options.contextCarriedOver,
+        context: options.context,
         verificationCommands: options.verificationCommands,
         verificationResults: options.verificationResults,
       });

@@ -1,0 +1,12 @@
+{
+  "package": "@picoai/tickets",
+  "releases": [
+    {
+      "version": "0.1.0",
+      "commit": "74b0378",
+      "date": "2026-03-11",
+      "channel": "latest",
+      "notes": "Published to npm"
+    }
+  ]
+}

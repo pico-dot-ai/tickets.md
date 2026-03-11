@@ -51,6 +51,12 @@ If working from an existing ticket, keep `ticket.md` stable and append run histo
 - If website changes were made, run: `npm run build`
 - Update docs when behavior changes
 
+## Release tracking
+
+- Published package provenance is tracked in `packages/tickets/release-history.json`
+- Check current release posture with `npm run release:status`
+- After an npm publish succeeds, append a new release entry with the published version and commit
+
 ## Contract changes
 
 If you change ticket format or behavior, include:

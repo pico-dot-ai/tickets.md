@@ -31,9 +31,9 @@ This repository uses a repo-native ticketing system designed for **parallel, lon
 **TICKETS.md ** explains the workflow, file formats, and required tool usage for both humans and agents. If there is ever a conflict between this file and other docs, follow this file.
 
 ## Spec version
-- `version`: 1
-- `version_url`: `version/20260205-tickets-spec.md`
-- Local file: `/.tickets/spec/version/20260205-tickets-spec.md`
+- `version`: 2
+- `version_url`: `version/20260311-tickets-spec.md`
+- Local file: `/.tickets/spec/version/20260311-tickets-spec.md`
 
 Version definitions live under `/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
 
@@ -63,7 +63,7 @@ This system addresses those problems with stable `ticket.md` files, merge-friend
 ### Initialize
 Create the repo structure and templates (idempotent):
 - `npx @picoai/tickets init`
-- Add `--examples` to generate example tickets (7 sample tickets with required/optional fields, relationships, and logs).
+- Add `--examples` to generate example tickets (7 sample tickets with required/optional fields, relationships, and logs that validate under the current spec).
 - Add `--apply` to upsert/create a managed section in `AGENTS.md` from `AGENTS_EXAMPLE.md` (without creating `AGENTS_EXAMPLE.md` in the target repo).
 - With `--apply`, `TICKETS.md` updates are marker-scoped: the managed block is replaced and metadata refreshed, while user-owned sections remain unchanged.
 
@@ -94,14 +94,25 @@ If validation fails and you want a complete report + repair plan:
 - `npx @picoai/tickets validate --issues --all-fields > issues.yaml`
 - `npx @picoai/tickets repair --issues-file issues.yaml --all-fields --non-interactive`
 
+Expected handling loop for a ticket:
+- validate the assigned ticket before changing code
+- use `tickets status` when the lifecycle state changes (`todo`, `doing`, `blocked`, `done`, `canceled`)
+- use `tickets log` for run history within a state: progress, checkpoints, blockers, decisions, verification, and handoff notes
+- machine-written work logs must include `--context`; for split child bootstrapping, pair `--created-from <parent-id>` with `--context ...`
+- reuse the same `--run-started` and `--run-id` for entries from the same run when you want a single per-run log file
+
 ### Log your work (human or agent)
 Use the CLI to write logs whenever possible (merge-friendly, structured, and tooling-validated).
 
+Actor defaults for both `tickets status` and `tickets log`:
+- `actor_id`: `--actor-id`, else `TICKETS_ACTOR_ID`, else `@${USER|USERNAME}`, else `"unknown"`
+- `actor_type`: `--actor-type`, else `TICKETS_ACTOR_TYPE`, else infer `agent` from `actor_id` prefix `agent:`, infer `human` from prefix `@`, else default to `human`
+
 Agentic tools (including human-invoked tools like Cursor/Windsurf/Codex CLI/Claude Code) SHOULD log with `--machine`:
-- `npx @picoai/tickets log --ticket <id> --actor-type agent --actor-id "cursor (human:@alice)" --summary "Implemented validator." --machine`
+- `npx @picoai/tickets log --ticket <id> --summary "Implemented validator." --machine --actor-id "agent:cursor (human:@alice)" --context "Acceptance criteria from ticket" "API schema v2"`
 
 Humans can log without machine marker:
-- `npx @picoai/tickets log --ticket <id> --actor-type human --actor-id "@alice" --summary "Investigated failing test; will retry tomorrow."`
+- `npx @picoai/tickets log --ticket <id> --summary "Investigated failing test; will retry tomorrow."`
 
 ---
 
@@ -137,8 +148,8 @@ Example:
 ```md
 ---
 id: 0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5c6d
-version: 1
-version_url: "version/20260205-tickets-spec.md"
+version: 2
+version_url: "version/20260311-tickets-spec.md"
 title: "Add tickets validate --issues"
 status: todo
 created_at: 2026-01-29T18:42:10Z
@@ -225,7 +236,8 @@ Recommended transitions:
 - `done` and `canceled` are immutable unless explicitly reopened by a human (set to `doing` and log why).
 
 Status updates:
-- `npx @picoai/tickets status --ticket <id> --status doing --log`
+- `npx @picoai/tickets status --ticket <id> --status doing --actor-type agent --actor-id "agent:codex"`
+- `tickets status` always appends a machine-written status-change log entry.
 
 ---
 
@@ -254,7 +266,12 @@ Required fields:
 - `actor_type`: `human|agent`
 - `actor_id`: string identifier (freeform)
 - `summary`: short summary string
+- `event_type`: `status|work`
+
+Conditional field:
 - `context`: `[...]` (bullets capturing the context relevant to this run; when splitting, include copied/adapted inputs from the parent)
+  - required for machine-written `work` entries
+  - optional for `status` entries and human-written logs
 
 Optional structured fields (recommended):
 - `changes`: `{files: [...], commits: [...], prs: [...]}`
@@ -274,7 +291,7 @@ Validation strictness:
 
 Example machine-written entry:
 ```json
-{"version":1,"version_url":"version/20260205-tickets-spec.md","ts":"2026-01-29T18:50:00Z","run_started":"20260129T184210.123Z","actor_type":"agent","actor_id":"codex-cli (human:@alice)","summary":"Implemented tickets validate --issues.","context":["Inputs: AC from ticket, API schema v2"],"verification":{"commands":["npx @picoai/tickets validate"],"results":"pass"},"written_by":"tickets"}
+{"version":2,"version_url":"version/20260311-tickets-spec.md","ts":"2026-01-29T18:50:00Z","run_started":"20260129T184210.123Z","actor_type":"agent","actor_id":"agent:codex-cli (human:@alice)","summary":"Implemented tickets validate --issues.","event_type":"work","context":["Acceptance criteria from ticket","API schema v2"],"verification":{"commands":["npx @picoai/tickets validate"],"results":"pass"},"written_by":"tickets"}
 ```
 
 Merge conflict rule (rare):
@@ -287,11 +304,15 @@ To keep state consistent and merge-friendly, agents and agentic tools SHOULD use
 - Create tickets: `npx @picoai/tickets new`
 - Validate: `npx @picoai/tickets validate` (or `--issues` for a full report)
 - Repair: `npx @picoai/tickets repair --issues-file ...`
-- Status changes: `npx @picoai/tickets status --log`
+- Status changes: `npx @picoai/tickets status`
 - Work logs: `npx @picoai/tickets log` (use `--machine` when the entry is tooling-written)
 - Listing/triage: `npx @picoai/tickets list` (use `--json` for automation)
 
 Humans may edit `ticket.md` directly (it is designed for that), but logs should be appended via the CLI whenever feasible.
+Expected command roles:
+- `tickets status` changes canonical lifecycle state and always records that state transition in logs
+- `tickets log` records run details without changing lifecycle state
+- first child handoff after a split should be a `tickets log` entry with both `created_from` and `context`
 
 ---
 
@@ -328,10 +349,15 @@ Given a ticket assignment, an agent must:
 
 1. Open the ticket file at `/.tickets/<ticket-id>/ticket.md`.
 2. Identify acceptance criteria and verification steps from the ticket.
-3. Plan minimally: determine the smallest change set that satisfies the acceptance criteria.
-4. Implement within limits.
-5. Verify using the ticket's verification steps (or reasonable defaults if absent).
-6. Log the run:
+3. Validate the ticket before proceeding.
+4. If beginning active work, set status to `doing`.
+5. Plan minimally: determine the smallest change set that satisfies the acceptance criteria.
+6. Implement within limits.
+7. Verify using the ticket's verification steps (or reasonable defaults if absent).
+8. Record progress with `tickets log`, reusing the same run metadata for the same run when appropriate.
+   - if the log is machine-written, include `context`
+   - if the ticket was created by splitting a parent, include `created_from` and the copied/adapted handoff bullets in `context`
+9. If the run changes lifecycle state, use `tickets status` again (`blocked`, `done`, or explicit reassignment/reaffirmation):
    - Write progress and outcomes to a per-run log file:
      - `/.tickets/<ticket-id>/logs/<run_started>-<run_id>.jsonl`
      - Include a `context` field capturing the relevant context for this run (copied/adapted inputs, decisions carried in, and any subticket handoff details).
@@ -409,6 +435,7 @@ repairs:
 - `npx @picoai/tickets repair --issues-file <path>` applies enabled repairs:
   - Safe repairs can be non-interactive.
   - Disruptive repairs (like changing `id`) must have explicit decisions filled in (or require interactive mode).
+  - Basic log repairs are supported for missing/invalid `event_type` and invalid or missing `context` on machine-written work logs.
 
 ---
 

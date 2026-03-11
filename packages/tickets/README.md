@@ -24,9 +24,9 @@ This system addresses those problems with stable `ticket.md` files, merge-friend
 
 ## Spec Version
 
-- `version`: 1
-- `version_url`: `version/20260205-tickets-spec.md`
-- Local file in package assets: `.tickets/spec/version/20260205-tickets-spec.md`
+- `version`: 2
+- `version_url`: `version/20260311-tickets-spec.md`
+- Local file in package assets: `.tickets/spec/version/20260311-tickets-spec.md`
 
 Version definitions live under `.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
 
@@ -57,6 +57,22 @@ npx @picoai/tickets init --apply
 ## Package Overview
 
 Repo-native ticketing CLI for Markdown-first, append-only ticket workflows.
+
+## Release Provenance
+
+- Latest npm release: `@picoai/tickets`
+- Published from commit: `74b0378`
+- Append-only release ledger: `packages/tickets/release-history.json`
+
+Check current release posture locally:
+
+```bash
+npm run release:status --workspace @picoai/tickets
+```
+
+Recommended process:
+- after an npm publish succeeds, append a new entry to `packages/tickets/release-history.json`
+- use `npm run release:status --workspace @picoai/tickets` to see whether HEAD is ahead of the last recorded npm release and whether the package version still needs a bump
 
 ## Install
 
@@ -92,7 +108,7 @@ Initialize ticketing structure and templates.
 npx @picoai/tickets init [--examples] [--apply]
 ```
 
-- `--examples`: generate example tickets and logs.
+- `--examples`: generate example tickets and logs that validate under the current spec.
 - `--apply`: update managed `TICKETS.md` + `AGENTS.md` sections and skip `AGENTS_EXAMPLE.md` output.
 
 ### `new`
@@ -149,6 +165,10 @@ Options:
 - `--non-interactive`
 - `--all-fields`
 
+Notes:
+- `repair` fixes ticket-file issues and basic log issues.
+- Basic log repairs cover missing/invalid `event_type` and invalid or missing `context` on machine-written work logs.
+
 ### `status`
 
 Update ticket status.
@@ -159,19 +179,30 @@ npx @picoai/tickets status --ticket <ticket> --status <status> [options]
 
 Options:
 - `--status <status>` (`todo|doing|blocked|done|canceled`)
-- `--log`
+- `--actor-type <human|agent>`
+- `--actor-id <id>`
+- `--context <items...>`
 - `--run-id <runId>`
 - `--run-started <runStarted>`
+
+Notes:
+- `status` always appends a machine-written status-change log entry.
+- include `--context` when the status transition depends on new context you want preserved in the audit trail.
+- `actor_id` default order: `--actor-id`, `TICKETS_ACTOR_ID`, `@${USER|USERNAME}`, `"unknown"`.
+- `actor_type` default order: `--actor-type`, `TICKETS_ACTOR_TYPE`, inferred from `actor_id` prefix (`agent:` -> `agent`, `@` -> `human`), then `human`.
 
 ### `log`
 
 Append a run log entry.
 
 ```bash
-npx @picoai/tickets log --ticket <ticket> --actor-type <human|agent> --actor-id <id> --summary "<text>" [options]
+npx @picoai/tickets log --ticket <ticket> --summary "<text>" [options]
 ```
 
 Options:
+- `--actor-type <human|agent>`
+- `--actor-id <id>`
+- `--context <items...>`
 - `--run-id <runId>`
 - `--run-started <runStarted>`
 - `--machine`
@@ -181,9 +212,15 @@ Options:
 - `--blockers <blockers...>`
 - `--tickets-created <tickets...>`
 - `--created-from <ticketId>`
-- `--context-carried-over <items...>`
 - `--verification-commands <commands...>`
 - `--verification-results <results>`
+
+Notes:
+- `log` records run details without changing ticket lifecycle state.
+- machine-written work logs require at least one `--context` item.
+- for split child bootstrapping, use `--created-from <parent-ticket-id>` together with `--context ...`.
+- `actor_id` default order: `--actor-id`, `TICKETS_ACTOR_ID`, `@${USER|USERNAME}`, `"unknown"`.
+- `actor_type` default order: `--actor-type`, `TICKETS_ACTOR_TYPE`, inferred from `actor_id` prefix (`agent:` -> `agent`, `@` -> `human`), then `human`.
 
 ### `list`
 
@@ -201,6 +238,9 @@ Options:
 - `--label <label>`
 - `--text <text>`
 - `--json`
+
+Notes:
+- `--text` searches the ticket title and Markdown body content.
 
 ### `graph`
 
