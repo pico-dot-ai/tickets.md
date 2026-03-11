@@ -33,7 +33,8 @@ Version definitions live under `packages/tickets/.tickets/spec/version/`. Each s
 ## Release Provenance
 
 - Latest npm release: `@picoai/tickets`
-- Published from commit: `74b0378`
+- Latest published version: `0.2.0`
+- Published from commit: `e1ed363`
 - Append-only release ledger: `packages/tickets/release-history.json`
 
 Check current release posture locally:
