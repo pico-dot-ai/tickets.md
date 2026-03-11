@@ -1,21 +1,16 @@
 {
-  "name": "tickets-md-site",
+  "name": "tickets-repo",
   "private": true,
+  "workspaces": [
+    "apps/site",
+    "packages/tickets"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "^16.1.6",
-    "react": "18.2.0",
-    "react-dom": "18.2.0"
-  },
-  "devDependencies": {
-    "@types/node": "20.11.30",
-    "@types/react": "18.2.67",
-    "@types/react-dom": "18.2.22",
-    "sharp": "^0.34.5",
-    "typescript": "5.4.5"
+    "dev": "npm run dev --workspace @picoai/tickets-site",
+    "build": "npm run build --workspace @picoai/tickets-site",
+    "start": "npm run start --workspace @picoai/tickets-site",
+    "test": "npm run test --workspace @picoai/tickets",
+    "test:cli": "npm run test:cli --workspace @picoai/tickets",
+    "tickets": "npm run tickets --workspace @picoai/tickets --"
   }
 }

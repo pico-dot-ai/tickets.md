@@ -64,7 +64,7 @@ This system addresses those problems with stable `ticket.md` files, merge-friend
 Create the repo structure and templates (idempotent):
 - `npx @picoai/tickets init`
 - Add `--examples` to generate example tickets (7 sample tickets with required/optional fields, relationships, and logs).
-- Add `--apply` to upsert/create a managed section in `AGENTS.md` from `AGENTS_EXAMPLE.md` (without creating `AGENTS_EXAMPLE.md` in the target repo).
+- Add `--apply` to upsert/create the managed `## Ticketing Workflow` block in `AGENTS.md` from `AGENTS_EXAMPLE.md` (without creating `AGENTS_EXAMPLE.md` in the target repo).
 - With `--apply`, `TICKETS.md` updates are marker-scoped: the managed block is replaced and metadata refreshed, while user-owned sections remain unchanged.
 
 Default `init` creates (if missing): `/.tickets/`, `TICKETS.md`, `AGENTS_EXAMPLE.md`, and `/.tickets/spec/version/`.

@@ -1,0 +1,39 @@
+{
+  "name": "@picoai/tickets",
+  "version": "0.1.0",
+  "description": "Repo-native ticketing CLI and assets for Markdown-first, append-only ticket workflows.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "tickets": "bin/tickets.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    ".tickets/spec/AGENTS_EXAMPLE.md",
+    ".tickets/spec/version",
+    ".tickets/spec/TICKETS.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "tickets": "node ./bin/tickets.js",
+    "test": "node --test",
+    "test:cli": "node --test tests/tickets-cli.test.js",
+    "pack:check": "npm pack --dry-run --cache /tmp/npm-cache-tickets"
+  },
+  "keywords": [
+    "tickets",
+    "cli",
+    "markdown",
+    "agentic-workflows"
+  ],
+  "dependencies": {
+    "commander": "^14.0.1",
+    "uuid": "^13.0.0",
+    "yaml": "^2.8.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

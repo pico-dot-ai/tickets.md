@@ -1,97 +1,104 @@
-# TICKETS.md
+# tickets.md Monorepo
 
-An Agent native, in-repo ticketing system designed for **parallel, long-running agentic development** (and normal human workflows) without relying on network access or external services.
+## About TICKETS.md
 
-This repo contains the system specification in `TICKETS.md` and includes an in-repo `tickets` CLI plus templates that implement that spec.
+This repository uses a repo-native ticketing system designed for **parallel, long-running agentic work** and normal human collaboration, without relying on external services or internet access.
 
-## What this is
+**TICKETS.md** explains the workflow, file formats, and required tool usage for both humans and agents. If there is ever a conflict between this file and other docs, follow this file.
 
-- A lightweight, Markdown-based ticket format stored in-repo under `/.tickets/`.
-- A merge-friendly logging model (append-only JSONL logs per run) that supports multiple agents working concurrently across branches.
-- A small CLI surface (`tickets init/new/validate/log/status/list/repair`) intended to be the *single integration point* for agents, IDE integrations, and humans using agentic tools.
+## Quickstart: Initialize a Repo
 
-## Why this exists
+Assuming `@picoai/tickets` is already installed in your target repo:
 
-Parallel, long-running agentic work tends to fail in predictable ways:
-
-- **Context loss between runs**: agents need durable, repo-local “memory” so handoffs work across sandboxes and time.
-- **Eventual-consistency across branches**: by the time work merges, ticket state may have changed; shared mutable logs/status files are conflict-prone.
-- **Merge conflicts from concurrent appends**: multiple workers updating the same file (even at EOF) is a frequent source of conflicts.
-- **Runaway iterations / unclear “done”**: agents need explicit acceptance criteria, verification steps, and hard iteration limits.
-- **Auditability**: humans need to understand what happened and why without reconstructing context from chat transcripts.
-
-This system addresses those issues by keeping ticket definitions stable and pushing history into **per-run, append-only JSONL logs** (one file per run), with strict structure for tooling-written entries and best-effort support for human notes.
-
-## Goals
-
-- **Offline-first**: everything needed to coordinate work lives in the repo (no required internet access).
-- **Merge-friendly parallelism**: concurrent runs write to different log files to minimize conflicts.
-- **Agent-safe execution**: iteration limits + required stop-and-handoff logs to prevent runaway behavior.
-- **Human-friendly tickets**: ticket definitions remain readable and lightweight; logs capture history without churning `ticket.md`.
-- **Consistent integrations**: external tools should interact via the repo-local `tickets` CLI (not bespoke formats).
-- **Optional GitHub compatibility**: tickets can map cleanly to Issues for title/state/labels, without requiring Issues as the system of record.
-
-## Non-goals
-
-- A full project management suite.
-- A required replacement for GitHub Issues.
-- A hosted service or web UI (v1).
-- Background daemons for core functionality.
-- A prescribed orchestration/harness model for how agents are routed/claimed/arbitrated.
-
-## Where to start
-
-- Read the spec: `TICKETS.md`
-- See CLI help: `./scripts/tickets --help`
-
-## Usage and tooling
-
-For full workflow, CLI commands, and ticket format, see `TICKETS.md` (canonical). README is project overview and FAQ only.
-
-## Quickstart
-
-If you're using this repo directly:
-
-```
-./scripts/tickets init
-./scripts/tickets new --title "Short title"
+```bash
+npx @picoai/tickets init
 ```
 
-If you're using this in another repo, copy the CLI and package first:
+This bootstraps ticketing assets in the target repository by creating:
+- root `TICKETS.md`
+- root `AGENTS_EXAMPLE.md`
+- root `/.tickets/spec/version/` with version definition files
 
-```
-cp -R scripts tickets /path/to/your/repo/
-```
+Optional apply mode:
 
-Then install dependencies (below), and initialize:
-
-```
-./scripts/tickets init
-```
-
-Add `--examples` to generate 7 sample tickets + logs.
-
-What `init` generates:
-
-```
-/.tickets/
-TICKETS.md
-AGENTS_EXAMPLE.md
+```bash
+npx @picoai/tickets init --apply
 ```
 
-If your tooling expects `AGENTS.md`, copy or rename `AGENTS_EXAMPLE.md`.
+`--apply` updates managed sections while preserving user-owned content:
+- updates the managed block in root `TICKETS.md`
+- creates or updates the `## Ticketing Workflow` block in root `AGENTS.md`
+- does not create `AGENTS_EXAMPLE.md` when applying directly to `AGENTS.md`
 
-## Dependencies
+## Spec Version
 
-The CLI and templates are Python-based and require a couple of lightweight libraries:
+- `version`: 1
+- `version_url`: `version/20260205-tickets-spec.md`
+- Canonical source in this repo: `packages/tickets/.tickets/spec/version/20260205-tickets-spec.md`
 
-- `PyYAML` (>= 6.0): YAML parsing/serialization for ticket front matter, issue reports, and repairs.
-- `uuid6` (>= 2024.1.25): Generates UUIDv7 IDs for tickets and run logs, matching the spec’s required ID format.
+Version definitions live under `packages/tickets/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
 
-Install them directly:
+## What this system is
 
+- A lightweight, Markdown-first ticket format stored under `/.tickets/` in consumer repos.
+- A merge-friendly history model: **append-only JSONL run logs**, one file per run, per ticket.
+- A repo-local CLI (`npx @picoai/tickets`) that is the **single integration surface** for humans, agents, and IDE/agentic tooling.
+
+## What this is trying to do
+
+Parallel, long-running agentic work fails in predictable ways:
+- Agents lose context across runs/sandboxes.
+- Ticket state can drift across branches before merge (eventual consistency).
+- Shared mutable log files are merge-conflict hotspots.
+- Agents can loop without clear done criteria or verification steps.
+
+This system addresses those problems with stable `ticket.md` files, merge-friendly per-run logs, and explicit acceptance + verification + bounded iteration guidance.
+
+## Repository structure
+
+```text
+/apps/site                 # Next.js website
+/packages/tickets       # npm package (@picoai/tickets)
+/TICKETS.md                # canonical ticketing contract
 ```
-python3 -m pip install "PyYAML>=6.0" "uuid6>=2024.1.25"
+
+## Workspaces
+
+This repo uses npm workspaces.
+
+- Site workspace: `@picoai/tickets-site` in `apps/site`
+- Package workspace: `@picoai/tickets` in `packages/tickets`
+
+## Common commands (from repo root)
+
+```bash
+npm install
+npm run dev         # website dev server
+npm run build       # website production build
+npm run test        # package tests
+npm run tickets -- --help
 ```
 
-Ensure these versions or newer are on the Python path before running `scripts/tickets`.
+## Package usage
+
+From any target repo:
+
+```bash
+npx @picoai/tickets init
+npx @picoai/tickets init --apply
+npx @picoai/tickets new --title "Short title"
+npx @picoai/tickets validate
+```
+
+## CLI Command Reference
+
+For the complete `@picoai/tickets` command and option documentation, see:
+- `packages/tickets/README.md` (`Command Reference` section)
+
+## Canonical docs
+
+- Contract: `TICKETS.md`
+- Agent bootstrap template source: `packages/tickets/.tickets/spec/AGENTS_EXAMPLE.md`
+- Versioned format docs source: `packages/tickets/.tickets/spec/version/`
+- Contribution guide: `CONTRIBUTING.md`
+- Code of Conduct: `CODE_OF_CONDUCT.md`

@@ -211,9 +211,18 @@ __marimo__/
 
 # Node / Next.js
 node_modules/
+**/node_modules/
 .next/
+**/.next/
 out/
+**/out/
+.turbo/
+.pnpm-store/
+
+# Runtime bootstrap artifacts (created by `npx @picoai/tickets init` in consumer repos)
+/.tickets/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .vercel/
+*.tgz
