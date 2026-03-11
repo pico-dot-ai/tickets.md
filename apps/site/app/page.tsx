@@ -386,7 +386,7 @@ created_at: 2026-01-29T18:42:10Z
             <div className="quickstartHeader">
               <h2 className="h2">Getting Started</h2>
               <p className="p">
-                It's simple to add TICKETS.md to your repo with helpful scripts and templates.
+                It's simple to add TICKETS.md to your repo with helpful tooling and templates.
                 Make it your own and see how you can integrate to your agentic workflows.
               </p>
             </div>
