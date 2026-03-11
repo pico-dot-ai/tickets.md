@@ -415,10 +415,9 @@ created_at: 2026-01-29T18:42:10Z
 
               <div className="quickstartCol">
                 <div className="quickstartPane">
-                  <div className="qsCardTitle">Anatomy of a ticket</div>
+                  <div className="qsCardTitle">Anatomy of TICKETS.md</div>
                   <div className="qsStepDesc">
                     Initializing tickets in your repo will write the key files needed to manage ticket tracking.
-                    {" "}Each ticket gets its own folder, a human readable Markdown definition, and append-only JSONL structured logs.
                   </div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
@@ -433,6 +432,12 @@ created_at: 2026-01-29T18:42:10Z
         └── logs/
             └── <run>.jsonl`}</code>
                     </pre>
+                  </div>
+                  <div className="qsStepDesc">
+                    Each ticket gets its own folder, a human readable Markdown definition, and append-only JSONL structured logs.
+                  </div>
+                  <div className="qsStepDesc">
+                    Updates and context live in merge friendly logs, not a single file.
                   </div>
                 </div>
               </div>
