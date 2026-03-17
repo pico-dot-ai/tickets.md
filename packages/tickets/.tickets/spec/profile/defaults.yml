@@ -3,6 +3,8 @@ workflow:
 defaults:
   planning:
     node_type: work
+    lane: null
+    horizon: null
   claims:
     ttl_minutes: 60
 semantics:

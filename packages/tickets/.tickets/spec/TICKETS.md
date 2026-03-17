@@ -40,8 +40,8 @@ This repository uses a repo-native ticketing system designed for **parallel, lon
 
 ## Spec version
 - `version`: 3
-- `version_url`: `version/20260317-tickets-spec.md`
-- Local file: `/.tickets/spec/version/20260317-tickets-spec.md`
+- `version_url`: `version/20260317-2-tickets-spec.md`
+- Local file: `/.tickets/spec/version/20260317-2-tickets-spec.md`
 
 Version definitions live under `/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
 
@@ -60,6 +60,7 @@ Repo artifacts:
 - `.tickets/config.yml`: authoritative repo-local machine-readable overrides
 - `.tickets/skills/tickets/SKILL.md`: repo skill projection with equivalent workflow semantics
 - `TICKETS.override.md`: optional narrative companion for human-only local policy
+- `/.tickets/derived/planning-index.json`: derived cache used by `list`, `plan`, and `graph`
 
 ## What this system is
 - A lightweight, Markdown-first ticket format stored under `/.tickets/`
@@ -96,6 +97,7 @@ Default `init` creates, if missing:
 - `npx @picoai/tickets status --ticket <id> --status doing`
 - `npx @picoai/tickets log --ticket <id> --summary "..." --machine --context "..."`
 - `npx @picoai/tickets claim --ticket <id>`
+- `npx @picoai/tickets list --ready --sort lane`
 - `npx @picoai/tickets plan --format json`
 - `npx @picoai/tickets graph --view portfolio`
 
@@ -138,6 +140,7 @@ By default:
 - `roadmap` -> `planning.horizon`
 
 Repos may override these mappings in `.tickets/config.yml` without changing the core CLI or validation invariants.
+Treat the list above as defaults. Agents should consult `.tickets/config.yml` before interpreting repo-specific planning language or creating tickets.
 
 ### Worked example
 
@@ -145,7 +148,7 @@ Repos may override these mappings in `.tickets/config.yml` without changing the 
 ---
 id: 0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5c6d
 version: 3
-version_url: "version/20260317-tickets-spec.md"
+version_url: "version/20260317-2-tickets-spec.md"
 title: "Feature Alpha"
 status: doing
 created_at: 2026-03-17T17:00:00Z
@@ -190,7 +193,7 @@ resolution: dropped
 Claim log example:
 
 ```json
-{"version":3,"version_url":"version/20260317-tickets-spec.md","ts":"2026-03-17T17:05:00Z","run_started":"20260317T170500.000Z","actor_type":"agent","actor_id":"agent:codex","summary":"Acquired claim 0191c2d3-...","event_type":"claim","written_by":"tickets","claim":{"action":"acquire","claim_id":"0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5d00","holder_id":"agent:codex","holder_type":"agent","ttl_minutes":60,"expires_at":"2026-03-17T18:05:00Z","reason":""}}
+{"version":3,"version_url":"version/20260317-2-tickets-spec.md","ts":"2026-03-17T17:05:00Z","run_started":"20260317T170500.000Z","actor_type":"agent","actor_id":"agent:codex","summary":"Acquired claim 0191c2d3-...","event_type":"claim","written_by":"tickets","claim":{"action":"acquire","claim_id":"0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5d00","holder_id":"agent:codex","holder_type":"agent","ttl_minutes":60,"expires_at":"2026-03-17T18:05:00Z","reason":""}}
 ```
 
 ## Ticket definition (`ticket.md`)
@@ -357,19 +360,25 @@ Primary commands:
 - `graph`
 
 Listing and reporting:
-- `list` can filter by planning fields, claim state, and readiness
-- `plan` reports rollups and ready queues
-- `graph` can render dependency, sequence, portfolio, or combined views
+- `list` is the broad queue/report view. Use it to filter and sort work across the repo.
+- `plan` is the operational board. Use it for ready work, in-progress work, blocked work, and group/checkpoint rollups.
+- `graph` is the structural map. Use it to inspect dependency, sequence, and containment relationships.
+
+Derived index:
+- `list`, `plan`, and `graph` maintain a derived planning index at `/.tickets/derived/planning-index.json`
+- the index is disposable cache state
+- the CLI rebuilds it automatically when ticket, log, config, or tool metadata changes
 
 ## Agent protocol
 
 Agents should:
 1. Load the repo skill if supported and present, otherwise read `TICKETS.md`
 2. Open the assigned ticket
-3. Validate before implementation
-4. Respect `assignment.mode`, `agent_limits`, planning constraints, and active claims
-5. Use `status`, `log`, `claim`, `plan`, and `graph` through the CLI
-6. If splitting work, create child tickets with copied minimum context and log `created_from`
+3. Consult `.tickets/config.yml` for repo-local defaults and semantic overrides before interpreting planning terms or creating tickets
+4. Validate before implementation
+5. Respect `assignment.mode`, `agent_limits`, planning constraints, and active claims
+6. Use `status`, `log`, `claim`, `list`, `plan`, and `graph` through the CLI
+7. If splitting work, create child tickets with copied minimum context and log `created_from`
 
 ## Safety and hygiene
 - Do not write secrets into tickets or logs

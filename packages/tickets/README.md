@@ -24,8 +24,8 @@ The system is designed for teams that want ticket state to live in the repo, sta
 ## Spec version
 
 - `version`: 3
-- `version_url`: `version/20260317-tickets-spec.md`
-- Local file in package assets: `.tickets/spec/version/20260317-tickets-spec.md`
+- `version_url`: `version/20260317-2-tickets-spec.md`
+- Local file in package assets: `.tickets/spec/version/20260317-2-tickets-spec.md`
 
 ## Install
 
@@ -86,6 +86,7 @@ Default semantic mapping:
 - `roadmap` -> `planning.horizon`
 
 Repos can override those terms in `.tickets/config.yml` without changing core execution semantics.
+Treat the list above as defaults. Agents should consult `.tickets/config.yml` before interpreting repo-specific planning vocabulary.
 
 ## Claims
 
@@ -126,6 +127,12 @@ Planning options:
 - `--precedes <ticketId>` repeatable
 - `--resolution <completed|merged|dropped>`
 
+Behavior:
+- `--group-id` must reference an existing `group` or `checkpoint`
+- missing `lane` and `horizon` can be inherited from referenced parent groups when unambiguous
+- missing `rank` is assigned automatically when the lane is known
+- repo defaults for planning fields come from `.tickets/config.yml`
+
 ### `validate`
 
 ```bash
@@ -137,6 +144,7 @@ Validates:
 - machine-written log entries
 - claim event payloads
 - repo-local `.tickets/config.yml`
+- planning graph correctness such as missing references, cycles, and rank conflicts
 
 ### `status`
 
@@ -174,6 +182,8 @@ Additional filters:
 - `--claimed`
 - `--claimed-by <actorId>`
 - `--ready`
+- `--sort <ready|priority|lane|rank|updated|title>`
+- `--reverse`
 - `--json`
 
 ### `plan`
@@ -186,6 +196,7 @@ Reports ready work and derived group/checkpoint rollups.
 
 Use this when you want to answer:
 - what is ready now
+- what is already in progress
 - what is blocked
 - how a group or checkpoint is progressing
 
@@ -194,6 +205,16 @@ Use this when you want to answer:
 ```bash
 npx @picoai/tickets graph [--ticket <ticket>] [--view dependency|sequence|portfolio|all] [--format mermaid|dot|json]
 ```
+
+`graph` is the structural view. It shows dependency, sequence, and containment relationships, with planning metadata attached to each node.
+
+## Derived index
+
+`list`, `plan`, and `graph` maintain a derived planning index at `/.tickets/derived/planning-index.json`.
+
+- it is cache state, not source of truth
+- it is safe to delete
+- the CLI rebuilds it automatically when tickets, logs, repo config, or tool metadata change
 
 ## Assets shipped with this package
 

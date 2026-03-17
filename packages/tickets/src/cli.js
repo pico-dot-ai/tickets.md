@@ -12,6 +12,7 @@ import {
   FORMAT_VERSION,
   FORMAT_VERSION_URL,
   GRAPH_VIEW_VALUES,
+  LIST_SORT_VALUES,
   PLANNING_NODE_TYPES,
   PRIORITY_VALUES,
   RESOLUTION_VALUES,
@@ -19,11 +20,12 @@ import {
 } from "./lib/constants.js";
 import { deriveActiveClaim, loadClaimEvents } from "./lib/claims.js";
 import { loadWorkflowProfile, validateRepoConfig } from "./lib/config.js";
+import { invalidatePlanningIndex, loadPlanningSnapshot, refreshPlanningIndexIfPresent } from "./lib/index.js";
 import { listTickets } from "./lib/listing.js";
-import { buildGraphData, buildPlanSummary, buildPlanningSnapshot } from "./lib/planning.js";
+import { buildGraphData, buildPlanSummary } from "./lib/planning.js";
 import { syncRepoConfig, syncRepoSkill } from "./lib/projections.js";
 import { applyRepairs, loadIssuesFile, runInteractive } from "./lib/repair.js";
-import { collectTicketPaths, validateRunLog, validateTicket } from "./lib/validation.js";
+import { collectTicketPaths, validatePlanningTopology, validateRunLog, validateTicket } from "./lib/validation.js";
 import {
   appendJsonl,
   ensureDir,
@@ -92,6 +94,61 @@ function normalizeContextItems(values) {
     return [];
   }
   return values.map((value) => String(value).trim()).filter(Boolean);
+}
+
+function groupIdSignature(groupIds = []) {
+  return [...groupIds].sort((a, b) => a.localeCompare(b)).join(",");
+}
+
+function resolveGroupTargets(groupIds, snapshot) {
+  const targets = [];
+  for (const groupId of groupIds ?? []) {
+    const row = snapshot.nodesById.get(groupId);
+    if (!row) {
+      throw new Error(`Unknown --group-id target: ${groupId}`);
+    }
+    if (!["group", "checkpoint"].includes(row.planning.node_type)) {
+      throw new Error(`--group-id must reference a group or checkpoint ticket: ${groupId}`);
+    }
+    targets.push(row);
+  }
+  return targets;
+}
+
+function inferInheritedScalar(groupTargets, key, optionName) {
+  const values = [...new Set(groupTargets.map((row) => row.planning[key]).filter((value) => value))];
+  if (values.length > 1) {
+    throw new Error(`Cannot infer --${optionName}; referenced groups disagree.`);
+  }
+  return values[0] ?? null;
+}
+
+function inferNextRank(snapshot, planning) {
+  if (!planning.lane) {
+    return null;
+  }
+
+  const signature = groupIdSignature(planning.group_ids);
+  let maxRank = 0;
+  for (const row of snapshot.rows) {
+    if (row.planning.node_type !== planning.node_type) {
+      continue;
+    }
+    if (groupIdSignature(row.planning.group_ids) !== signature) {
+      continue;
+    }
+    if (row.planning.lane !== planning.lane) {
+      continue;
+    }
+    if ((row.planning.horizon ?? null) !== (planning.horizon ?? null)) {
+      continue;
+    }
+    if (Number.isInteger(row.planning.rank) && row.planning.rank > maxRank) {
+      maxRank = row.planning.rank;
+    }
+  }
+
+  return maxRank + 1;
 }
 
 function printIssues(issues) {
@@ -266,7 +323,17 @@ function renderMermaid(graph, includeRelated, timestamp, view) {
     const nodeRef = `n${idx}`;
     nodeIds.set(node.id, nodeRef);
     const title = (node.title || node.id).replaceAll('"', '\\"');
-    const label = `${title}\\n(${node.id})`;
+    const metadata = [
+      `status=${node.status || "todo"}`,
+      `type=${node.planning.node_type ?? ""}`,
+      `lane=${node.planning.lane ?? "-"}`,
+      `rank=${node.planning.rank ?? "-"}`,
+      `horizon=${node.planning.horizon ?? "-"}`,
+    ];
+    if (node.resolution) {
+      metadata.push(`resolution=${node.resolution}`);
+    }
+    const label = `${title}\\n(${node.id})\\n${metadata.join("\\n")}`;
     const status = (node.status || "todo").toLowerCase();
     lines.push(`  ${nodeRef}["${label}"]:::status_${status}`);
     lines.push(`  click ${nodeRef} "/.tickets/${node.id}/ticket.md" "_blank"`);
@@ -314,7 +381,17 @@ function renderDot(graph, includeRelated) {
     nodeIds.set(node.id, nodeRef);
     const status = (node.status || "todo").toLowerCase();
     const color = colors[status] ?? colors.todo;
-    const label = `${node.title || node.id}\\n(${node.id})\\n${status}`;
+    const metadata = [
+      `status=${status}`,
+      `type=${node.planning.node_type ?? ""}`,
+      `lane=${node.planning.lane ?? "-"}`,
+      `rank=${node.planning.rank ?? "-"}`,
+      `horizon=${node.planning.horizon ?? "-"}`,
+    ];
+    if (node.resolution) {
+      metadata.push(`resolution=${node.resolution}`);
+    }
+    const label = `${node.title || node.id}\\n(${node.id})\\n${metadata.join("\\n")}`;
     lines.push(
       `  ${nodeRef} [label="${label}", fillcolor="${color}", URL="/.tickets/${node.id}/ticket.md", target="_blank"];`,
     );
@@ -349,6 +426,14 @@ function renderJson(graph, includeRelated) {
       priority: node.priority,
       owner: node.owner,
       mode: node.mode,
+      node_type: node.planning.node_type,
+      group_ids: node.planning.group_ids,
+      lane: node.planning.lane,
+      rank: node.planning.rank,
+      horizon: node.planning.horizon,
+      precedes: node.planning.precedes,
+      resolution: node.resolution,
+      ready: node.ready,
       href: `/.tickets/${node.id}/ticket.md`,
     })),
   };
@@ -967,8 +1052,8 @@ async function cmdInit(options) {
   const versionDir = path.join(repoBaseDir, "version");
   ensureDir(versionDir);
 
-  const currentSpecPath = path.join(versionDir, "20260317-tickets-spec.md");
-  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260317-tickets-spec.md"), apply);
+  const currentSpecPath = path.join(versionDir, "20260317-2-tickets-spec.md");
+  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260317-2-tickets-spec.md"), apply);
 
   const previousCurrentSpecPath = path.join(versionDir, "20260311-tickets-spec.md");
   writeTemplateFile(
@@ -987,6 +1072,7 @@ async function cmdInit(options) {
     generateExampleTickets();
   }
 
+  invalidatePlanningIndex();
   process.stdout.write("Initialized.\n");
   return 0;
 }
@@ -994,9 +1080,40 @@ async function cmdInit(options) {
 async function cmdNew(options) {
   ensureDir(ticketsDir());
   const profile = loadWorkflowProfile();
+  const snapshot = loadPlanningSnapshot({ persist: false });
   const ticketId = newUuidv7().toLowerCase();
   const ticketDir = path.join(ticketsDir(), ticketId);
   ensureDir(path.join(ticketDir, "logs"));
+  const groupIds = options.groupIds?.length ? options.groupIds : [];
+  const groupTargets = resolveGroupTargets(groupIds, snapshot);
+
+  let lane = options.lane ?? null;
+  if (lane === null && groupTargets.length > 0) {
+    lane = inferInheritedScalar(groupTargets, "lane", "lane");
+  }
+  if (lane === null) {
+    lane = profile.defaults?.planning?.lane ?? null;
+  }
+
+  let horizon = options.horizon ?? null;
+  if (horizon === null && groupTargets.length > 0) {
+    horizon = inferInheritedScalar(groupTargets, "horizon", "horizon");
+  }
+  if (horizon === null) {
+    horizon = profile.defaults?.planning?.horizon ?? null;
+  }
+
+  const planning = {
+    node_type: options.nodeType || profile.defaults?.planning?.node_type || "work",
+    group_ids: groupIds,
+    lane,
+    rank: options.rank ?? null,
+    horizon,
+    precedes: options.precedes?.length ? options.precedes : [],
+  };
+  if (planning.rank === null && planning.lane) {
+    planning.rank = inferNextRank(snapshot, planning);
+  }
 
   const frontMatter = {
     id: ticketId,
@@ -1050,14 +1167,7 @@ async function cmdNew(options) {
   if (options.verificationCommands?.length) {
     frontMatter.verification = { commands: options.verificationCommands };
   }
-  frontMatter.planning = {
-    node_type: options.nodeType || profile.defaults?.planning?.node_type || "work",
-    group_ids: options.groupIds?.length ? options.groupIds : [],
-    lane: options.lane ?? null,
-    rank: options.rank ?? null,
-    horizon: options.horizon ?? null,
-    precedes: options.precedes?.length ? options.precedes : [],
-  };
+  frontMatter.planning = planning;
   if (options.resolution) {
     frontMatter.resolution = options.resolution;
   }
@@ -1079,12 +1189,14 @@ async function cmdNew(options) {
   ].join("\n");
 
   writeTicket(path.join(ticketDir, "ticket.md"), frontMatter, body);
+  refreshPlanningIndexIfPresent();
   process.stdout.write(`${ticketId}\n`);
   return 0;
 }
 
 async function cmdValidate(options) {
   const ticketPaths = collectTicketPaths(options.ticket);
+  const allTicketPaths = collectTicketPaths(null);
   const issues = [];
 
   issues.push(...validateRepoConfig(repoRoot()));
@@ -1108,6 +1220,8 @@ async function cmdValidate(options) {
       issues.push(...validateRunLog(logFile, false));
     }
   }
+
+  issues.push(...validatePlanningTopology(ticketPaths, allTicketPaths));
 
   issues.forEach((issue, index) => {
     if (!issue.id) {
@@ -1171,6 +1285,7 @@ async function cmdStatus(options) {
 
   const logPath = path.join(path.dirname(ticketPath), "logs", `${runStarted}-${runId}.jsonl`);
   appendJsonl(logPath, entry);
+  refreshPlanningIndexIfPresent();
 
   return 0;
 }
@@ -1230,25 +1345,41 @@ async function cmdLog(options) {
 
   const logPath = path.join(path.dirname(ticketPath), "logs", `${runStarted}-${runId}.jsonl`);
   appendJsonl(logPath, entry);
+  refreshPlanningIndexIfPresent();
   return 0;
 }
 
+function renderTable(headers, rows) {
+  process.stdout.write(`${headers.join(" | ")}\n`);
+  for (const row of rows) {
+    process.stdout.write(`${headers.map((key) => String(row[key] ?? "")).join(" | ")}\n`);
+  }
+}
+
 async function cmdList(options) {
-  const rows = listTickets({
-    status: options.status,
-    priority: options.priority,
-    mode: options.mode,
-    owner: options.owner,
-    label: options.label,
-    text: options.text,
-    nodeType: options.nodeType,
-    group: options.group,
-    lane: options.lane,
-    horizon: options.horizon,
-    claimed: Boolean(options.claimed),
-    claimedBy: options.claimedBy,
-    ready: Boolean(options.ready),
-  });
+  const snapshot = loadPlanningSnapshot();
+  const rows = listTickets(
+    snapshot,
+    {
+      status: options.status,
+      priority: options.priority,
+      mode: options.mode,
+      owner: options.owner,
+      label: options.label,
+      text: options.text,
+      nodeType: options.nodeType,
+      group: options.group,
+      lane: options.lane,
+      horizon: options.horizon,
+      claimed: Boolean(options.claimed),
+      claimedBy: options.claimedBy,
+      ready: Boolean(options.ready),
+    },
+    {
+      sortBy: options.sort,
+      reverse: Boolean(options.reverse),
+    },
+  );
 
   if (options.json) {
     process.stdout.write(`${JSON.stringify(rows, null, 2)}\n`);
@@ -1270,20 +1401,18 @@ async function cmdList(options) {
     "rank",
     "horizon",
     "ready",
+    "claim",
     "owner",
-    "mode",
     "last_updated",
   ];
-  process.stdout.write(`${headers.join(" | ")}\n`);
-  for (const row of rows) {
-    process.stdout.write(`${headers.map((key) => String(row[key] ?? "")).join(" | ")}\n`);
-  }
+  renderTable(headers, rows.map((row) => ({ ...row, claim: row.claim_summary })));
 
   return 0;
 }
 
 async function cmdPlan(options) {
-  const summary = buildPlanSummary({
+  const snapshot = loadPlanningSnapshot();
+  const summary = buildPlanSummary(snapshot, {
     group: options.group ?? options.root ?? null,
     horizon: options.horizon ?? null,
   });
@@ -1293,19 +1422,41 @@ async function cmdPlan(options) {
     return 0;
   }
 
-  process.stdout.write("Ready queue\n");
-  for (const row of summary.ready) {
-    process.stdout.write(
-      `${row.id} | ${row.title} | lane=${row.lane ?? ""} | rank=${row.rank ?? ""} | horizon=${row.horizon ?? ""}\n`,
-    );
-  }
-  process.stdout.write("\nGroups\n");
-  for (const group of summary.groups) {
+  const itemHeaders = [
+    "id",
+    "title",
+    "status",
+    "priority",
+    "node_type",
+    "lane",
+    "rank",
+    "horizon",
+    "claim",
+    "owner",
+  ];
+  const groupHeaders = ["id", "title", "node_type", "lane", "rank", "horizon", "rollup_summary"];
+
+  const activeRows = summary.active.map((row) => ({ ...row }));
+  const blockedRows = summary.blocked.map((row) => ({
+    ...row,
+    blocked_by: JSON.stringify(row.blocked_by),
+  }));
+  const groupRows = summary.groups.map((group) => {
     const rollup = group.rollup ?? {};
-    process.stdout.write(
-      `${group.id} | ${group.title} | ${group.node_type} | ${rollup.done_completed ?? 0}/${rollup.active_leaf ?? 0} complete | merged=${rollup.merged ?? 0} | dropped=${rollup.dropped ?? 0}\n`,
-    );
-  }
+    return {
+      ...group,
+      rollup_summary: `${rollup.done_completed ?? 0}/${rollup.active_leaf ?? 0} complete | merged=${rollup.merged ?? 0} | dropped=${rollup.dropped ?? 0}`,
+    };
+  });
+
+  process.stdout.write("Ready\n");
+  renderTable(itemHeaders, summary.ready.map((row) => ({ ...row, claim: row.claim_summary })));
+  process.stdout.write("\nIn Progress\n");
+  renderTable(itemHeaders, activeRows.map((row) => ({ ...row, claim: row.claim_summary })));
+  process.stdout.write("\nBlocked\n");
+  renderTable([...itemHeaders, "blocked_by"], blockedRows.map((row) => ({ ...row, claim: row.claim_summary })));
+  process.stdout.write("\nGroups / Checkpoints\n");
+  renderTable(groupHeaders, groupRows);
 
   return 0;
 }
@@ -1391,6 +1542,7 @@ async function cmdClaim(options) {
   }
 
   appendJsonl(path.join(logsDir, `${runStarted}-${runId}.jsonl`), entry);
+  refreshPlanningIndexIfPresent();
   process.stdout.write(`${summary}\n`);
   return 0;
 }
@@ -1466,7 +1618,7 @@ async function cmdRepair(options) {
 }
 
 async function cmdGraph(options) {
-  const snapshot = buildPlanningSnapshot();
+  const snapshot = loadPlanningSnapshot();
   const graph = buildGraphData(snapshot, {
     ticket: options.ticket,
     view: options.view,
@@ -1703,8 +1855,13 @@ export async function run(argv = process.argv.slice(2)) {
     .option("--claimed", "Only show claimed tickets")
     .option("--claimed-by <actorId>")
     .option("--ready", "Only show ready tickets")
+    .option("--sort <sort>", "ready | priority | lane | rank | updated | title")
+    .option("--reverse", "Reverse the sort order")
     .option("--json", "JSON output")
     .action(async (options) => {
+      if (options.sort && !LIST_SORT_VALUES.includes(options.sort)) {
+        throw new Error(`Invalid --sort. Use one of: ${LIST_SORT_VALUES.join(", ")}`);
+      }
       process.exitCode = await cmdList(options);
     });
 

@@ -226,3 +226,7 @@ yarn-debug.log*
 yarn-error.log*
 .vercel/
 *.tgz
+
+# Track the tickets package source library even though generic Python templates ignore lib/
+!packages/tickets/src/lib/
+!packages/tickets/src/lib/**

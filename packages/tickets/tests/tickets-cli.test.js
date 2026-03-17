@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
+import yaml from "yaml";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(testDir, "..");
@@ -25,6 +26,18 @@ function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "tickets-"));
 }
 
+function readTicketFrontMatter(cwd, ticketId) {
+  const ticketPath = path.join(cwd, ".tickets", ticketId, "ticket.md");
+  const text = fs.readFileSync(ticketPath, "utf8");
+  const match = text.match(/^---\n([\s\S]*?)\n---\n/);
+  assert.ok(match, `front matter missing in ${ticketPath}`);
+  return yaml.parse(match[1]);
+}
+
+function readPlanningIndex(cwd) {
+  return JSON.parse(fs.readFileSync(path.join(cwd, ".tickets", "derived", "planning-index.json"), "utf8"));
+}
+
 test("init creates expected structure", () => {
   const tmp = makeTmpDir();
   const result = runCli(tmp, ["init"]);
@@ -42,7 +55,7 @@ test("init creates expected structure", () => {
   assert.match(ticketsDoc, /## Core planning model/);
   assert.doesNotMatch(ticketsDoc, /@picoai\/tickets:tickets-md:start/);
   assert.equal(
-    fs.existsSync(path.join(tmp, ".tickets", "spec", "version", "20260317-tickets-spec.md")),
+    fs.existsSync(path.join(tmp, ".tickets", "spec", "version", "20260317-2-tickets-spec.md")),
     true,
   );
 });
@@ -69,15 +82,15 @@ test("init --apply preserves custom content and updates managed TICKETS.md + AGE
   assert.match(ticketsDoc, /## Spec version/);
   assert.doesNotMatch(ticketsDoc, /@picoai\/tickets:tickets-md:start/);
   assert.equal(fs.existsSync(path.join(tmp, "AGENTS_EXAMPLE.md")), false);
-  assert.equal(fs.readFileSync(path.join(tmp, ".tickets", "config.yml"), "utf8"), "workflow:\n  mode: skill_first\n");
+  assert.match(fs.readFileSync(path.join(tmp, ".tickets", "config.yml"), "utf8"), /workflow:\n  mode: skill_first/);
   assert.equal(fs.readFileSync(path.join(tmp, "TICKETS.override.md"), "utf8"), "# Local override\n");
   assert.equal(
     fs.existsSync(path.join(tmp, ".tickets", "skills", "tickets", "SKILL.md")),
     true,
   );
   assert.equal(
-    fs.readFileSync(path.join(tmp, ".tickets", "spec", "version", "20260317-tickets-spec.md"), "utf8"),
-    fs.readFileSync(path.join(packageRoot, ".tickets", "spec", "version", "20260317-tickets-spec.md"), "utf8"),
+    fs.readFileSync(path.join(tmp, ".tickets", "spec", "version", "20260317-2-tickets-spec.md"), "utf8"),
+    fs.readFileSync(path.join(packageRoot, ".tickets", "spec", "version", "20260317-2-tickets-spec.md"), "utf8"),
   );
   assert.equal(
     fs.readFileSync(path.join(tmp, ".tickets", "spec", "version", "20260311-tickets-spec.md"), "utf8"),
@@ -90,6 +103,7 @@ test("init --apply preserves custom content and updates managed TICKETS.md + AGE
   assert.match(agentsMd, /^### Required Behavior$/m);
   assert.match(agentsMd, /^### Bootstrapping TICKETS\.md$/m);
   assert.match(agentsMd, /\.tickets\/skills\/tickets\/SKILL\.md/);
+  assert.match(agentsMd, /\.tickets\/config\.yml/);
   assert.doesNotMatch(agentsMd, /<!-- @picoai\/tickets:agents:start -->/);
   assert.doesNotMatch(agentsMd, /^# Ticketing Workflow$/m);
   assert.doesNotMatch(agentsMd, /^#+\s+#+\s*Ticketing Workflow$/m);
@@ -788,6 +802,253 @@ test("generated TICKETS and repo skill stay aligned on planning concepts", () =>
 
   assert.match(ticketsDoc, /planning\.node_type/);
   assert.match(ticketsDoc, /claims are optional advisory leases/i);
+  assert.match(ticketsDoc, /\.tickets\/config\.yml/);
   assert.match(skillDoc, /planning\.node_type/);
   assert.match(skillDoc, /Claims/);
+  assert.match(skillDoc, /\.tickets\/config\.yml/);
+});
+
+test("plan exposes effective semantics from repo config", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init", "--apply"]).status, 0);
+  fs.writeFileSync(
+    path.join(tmp, ".tickets", "config.yml"),
+    [
+      "workflow:",
+      "  mode: auto",
+      "defaults:",
+      "  planning:",
+      "    node_type: work",
+      "    lane: null",
+      "    horizon: null",
+      "  claims:",
+      "    ttl_minutes: 60",
+      "semantics:",
+      "  terms:",
+      "    stage:",
+      "      field: planning.lane",
+      "      description: Stage maps to lane in this repo.",
+      "",
+    ].join("\n"),
+  );
+
+  const result = runCli(tmp, ["plan", "--format", "json"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const summary = JSON.parse(result.stdout);
+  assert.equal(summary.semantics.stage.field, "planning.lane");
+});
+
+test("new applies defaults, inherits planning from parent groups, and auto-assigns rank", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  fs.writeFileSync(
+    path.join(tmp, ".tickets", "config.yml"),
+    [
+      "workflow:",
+      "  mode: auto",
+      "defaults:",
+      "  planning:",
+      "    node_type: work",
+      "    lane: backlog",
+      "    horizon: next",
+      "  claims:",
+      "    ttl_minutes: 60",
+      "semantics:",
+      "  terms: {}",
+      "views: {}",
+      "",
+    ].join("\n"),
+  );
+
+  const group = runCli(tmp, ["new", "--title", "Feature", "--node-type", "group", "--lane", "build", "--horizon", "current"]);
+  assert.equal(group.status, 0, group.stderr || group.stdout);
+  const groupId = group.stdout.trim();
+
+  const child = runCli(tmp, ["new", "--title", "Child", "--group-id", groupId]);
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+  const childFrontMatter = readTicketFrontMatter(tmp, child.stdout.trim());
+  assert.equal(childFrontMatter.planning.lane, "build");
+  assert.equal(childFrontMatter.planning.horizon, "current");
+  assert.equal(childFrontMatter.planning.rank, 1);
+
+  const standalone = runCli(tmp, ["new", "--title", "Standalone"]);
+  assert.equal(standalone.status, 0, standalone.stderr || standalone.stdout);
+  const standaloneFrontMatter = readTicketFrontMatter(tmp, standalone.stdout.trim());
+  assert.equal(standaloneFrontMatter.planning.lane, "backlog");
+  assert.equal(standaloneFrontMatter.planning.horizon, "next");
+  assert.equal(standaloneFrontMatter.planning.rank, 1);
+});
+
+test("new fails when parent groups disagree on inferred lane", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const first = runCli(tmp, ["new", "--title", "Group A", "--node-type", "group", "--lane", "build"]);
+  const second = runCli(tmp, ["new", "--title", "Group B", "--node-type", "group", "--lane", "launch"]);
+  assert.equal(first.status, 0, first.stderr || first.stdout);
+  assert.equal(second.status, 0, second.stderr || second.stdout);
+
+  const child = runCli(tmp, [
+    "new",
+    "--title",
+    "Child",
+    "--group-id",
+    first.stdout.trim(),
+    "--group-id",
+    second.stdout.trim(),
+  ]);
+  assert.notEqual(child.status, 0, child.stderr || child.stdout);
+  assert.match(child.stderr, /Cannot infer --lane/);
+});
+
+test("new rejects group-id targets that are not group or checkpoint tickets", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  const work = runCli(tmp, ["new", "--title", "Work"]);
+  assert.equal(work.status, 0, work.stderr || work.stdout);
+
+  const child = runCli(tmp, ["new", "--title", "Child", "--group-id", work.stdout.trim()]);
+  assert.notEqual(child.status, 0, child.stderr || child.stdout);
+  assert.match(child.stderr, /must reference a group or checkpoint/);
+});
+
+test("list returns sorted rows with claim and blocked metadata", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const dependency = runCli(tmp, ["new", "--title", "Dependency", "--lane", "build", "--rank", "1"]);
+  assert.equal(dependency.status, 0, dependency.stderr || dependency.stdout);
+  const dependencyId = dependency.stdout.trim();
+
+  const blocked = runCli(tmp, [
+    "new",
+    "--title",
+    "Blocked work",
+    "--dependency",
+    dependencyId,
+    "--lane",
+    "build",
+    "--rank",
+    "3",
+  ]);
+  assert.equal(blocked.status, 0, blocked.stderr || blocked.stdout);
+
+  const ready = runCli(tmp, [
+    "new",
+    "--title",
+    "Ready work",
+    "--priority",
+    "critical",
+    "--lane",
+    "build",
+    "--rank",
+    "2",
+  ]);
+  assert.equal(ready.status, 0, ready.stderr || ready.stdout);
+  assert.equal(runCli(tmp, ["claim", "--ticket", ready.stdout.trim(), "--actor-id", "agent:alpha"]).status, 0);
+
+  const list = runCli(tmp, ["list", "--json"]);
+  assert.equal(list.status, 0, list.stderr || list.stdout);
+  const rows = JSON.parse(list.stdout);
+  assert.equal(rows[0].title, "Ready work");
+  assert.match(rows[0].claim_summary, /agent:alpha/);
+  const blockedRow = rows.find((row) => row.title === "Blocked work");
+  assert.deepEqual(blockedRow.blocked_by.dependencies, [dependencyId]);
+});
+
+test("plan reports ready, active, blocked, and group rollups with claim summaries", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const group = runCli(tmp, ["new", "--title", "Feature", "--node-type", "group", "--lane", "build", "--horizon", "current"]);
+  assert.equal(group.status, 0, group.stderr || group.stdout);
+  const groupId = group.stdout.trim();
+
+  const ready = runCli(tmp, ["new", "--title", "Ready", "--group-id", groupId, "--lane", "build", "--rank", "1", "--horizon", "current"]);
+  const active = runCli(tmp, ["new", "--title", "Active", "--group-id", groupId, "--lane", "build", "--rank", "2", "--horizon", "current", "--status", "doing"]);
+  const dependency = runCli(tmp, ["new", "--title", "Prereq", "--group-id", groupId, "--lane", "build", "--rank", "3", "--horizon", "current"]);
+  const blocked = runCli(tmp, ["new", "--title", "Blocked", "--group-id", groupId, "--dependency", dependency.stdout.trim(), "--lane", "build", "--rank", "4", "--horizon", "current"]);
+  assert.equal(ready.status, 0, ready.stderr || ready.stdout);
+  assert.equal(active.status, 0, active.stderr || active.stdout);
+  assert.equal(dependency.status, 0, dependency.stderr || dependency.stdout);
+  assert.equal(blocked.status, 0, blocked.stderr || blocked.stdout);
+  assert.equal(runCli(tmp, ["claim", "--ticket", ready.stdout.trim(), "--actor-id", "agent:planner"]).status, 0);
+
+  const result = runCli(tmp, ["plan", "--group", groupId, "--format", "json"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const summary = JSON.parse(result.stdout);
+  assert.equal(summary.ready.length, 2);
+  assert.equal(summary.active.length, 1);
+  assert.equal(summary.blocked.length, 1);
+  assert.match(summary.ready[0].claim_summary || "", /agent:planner/);
+  assert.equal(summary.groups.length, 1);
+});
+
+test("graph json includes planning metadata on nodes", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  const group = runCli(tmp, ["new", "--title", "Feature", "--node-type", "group", "--lane", "build", "--horizon", "current"]);
+  assert.equal(group.status, 0, group.stderr || group.stdout);
+  const child = runCli(tmp, ["new", "--title", "Child", "--group-id", group.stdout.trim(), "--lane", "build", "--rank", "1", "--horizon", "current"]);
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+
+  const graph = runCli(tmp, ["graph", "--view", "portfolio", "--format", "json"]);
+  assert.equal(graph.status, 0, graph.stderr || graph.stdout);
+  const json = JSON.parse(fs.readFileSync(graph.stdout.trim(), "utf8"));
+  const node = json.nodes.find((entry) => entry.title === "Child");
+  assert.equal(node.node_type, "work");
+  assert.equal(node.lane, "build");
+  assert.equal(node.rank, 1);
+  assert.equal(node.horizon, "current");
+  assert.equal(Array.isArray(node.group_ids), true);
+});
+
+test("validate reports planning topology issues", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  const group = runCli(tmp, ["new", "--title", "Feature", "--node-type", "group", "--lane", "build"]);
+  assert.equal(group.status, 0, group.stderr || group.stdout);
+  const groupId = group.stdout.trim();
+  const first = runCli(tmp, ["new", "--title", "One", "--group-id", groupId, "--lane", "build", "--rank", "1"]);
+  const second = runCli(tmp, ["new", "--title", "Two", "--group-id", groupId, "--lane", "build", "--rank", "1"]);
+  assert.equal(first.status, 0, first.stderr || first.stdout);
+  assert.equal(second.status, 0, second.stderr || second.stdout);
+
+  const frontMatter = readTicketFrontMatter(tmp, first.stdout.trim());
+  frontMatter.dependencies = ["0195a1b7-4a17-7c2e-8db2-4d5cb0f0d643"];
+  frontMatter.planning.precedes = [frontMatter.id];
+  const ticketPath = path.join(tmp, ".tickets", first.stdout.trim(), "ticket.md");
+  fs.writeFileSync(ticketPath, `---\n${yaml.stringify(frontMatter).trimEnd()}\n---\n# Ticket\n\n## Description\n(fill in)\n\n## Acceptance Criteria\n- [ ] Define clear, checkable outcomes.\n\n## Verification\n- (add commands or steps)\n`);
+
+  const validate = runCli(tmp, ["validate"]);
+  assert.equal(validate.status, 1, validate.stderr || validate.stdout);
+  assert.match(validate.stdout, /references missing ticket/);
+  assert.match(validate.stdout, /must not contain the ticket's own id/);
+  assert.match(validate.stdout, /planning\.rank conflicts with another ticket/);
+});
+
+test("derived planning index is created, refreshed, and rebuilt when stale", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  const ticket = runCli(tmp, ["new", "--title", "Indexed"]);
+  assert.equal(ticket.status, 0, ticket.stderr || ticket.stdout);
+  const ticketId = ticket.stdout.trim();
+
+  const firstList = runCli(tmp, ["list", "--json"]);
+  assert.equal(firstList.status, 0, firstList.stderr || firstList.stdout);
+  const firstIndex = readPlanningIndex(tmp);
+  assert.ok(firstIndex.index_format_id);
+
+  assert.equal(runCli(tmp, ["claim", "--ticket", ticketId, "--actor-id", "agent:index"]).status, 0);
+  const afterClaim = readPlanningIndex(tmp);
+  const indexedRow = afterClaim.rows.find((row) => row.id === ticketId);
+  assert.equal(indexedRow.active_claim.holder_id, "agent:index");
+
+  const tampered = { ...afterClaim, index_format_id: "0195a1b7-4a17-7c2e-8db2-4d5cb0f0d699" };
+  fs.writeFileSync(path.join(tmp, ".tickets", "derived", "planning-index.json"), `${JSON.stringify(tampered, null, 2)}\n`);
+
+  const secondList = runCli(tmp, ["list", "--json"]);
+  assert.equal(secondList.status, 0, secondList.stderr || secondList.stdout);
+  const rebuilt = readPlanningIndex(tmp);
+  assert.notEqual(rebuilt.index_format_id, tampered.index_format_id);
 });
