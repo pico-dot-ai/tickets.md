@@ -1,6 +1,6 @@
 {
   "name": "@picoai/tickets",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Repo-native ticketing CLI and assets for Markdown-first, append-only ticket workflows.",
   "license": "Apache-2.0",
   "type": "module",
@@ -12,6 +12,7 @@
     "src",
     "release-history.json",
     ".tickets/spec/AGENTS_EXAMPLE.md",
+    ".tickets/spec/profile",
     ".tickets/spec/version",
     ".tickets/spec/TICKETS.md",
     "README.md",

@@ -1,0 +1,29 @@
+workflow:
+  mode: auto
+defaults:
+  planning:
+    node_type: work
+  claims:
+    ttl_minutes: 60
+semantics:
+  terms:
+    feature:
+      field: planning.node_type
+      value: group
+      description: A feature is modeled as a group node containing related work.
+    phase:
+      field: planning.lane
+      description: A phase is modeled as a lane value that orders work at a coarse level.
+    milestone:
+      field: planning.node_type
+      value: checkpoint
+      description: A milestone is modeled as a checkpoint node with derived completion.
+    roadmap:
+      field: planning.horizon
+      description: A roadmap is modeled as a horizon value across groups and checkpoints.
+views:
+  plan:
+    sort_by:
+      - planning.lane
+      - planning.rank
+      - priority

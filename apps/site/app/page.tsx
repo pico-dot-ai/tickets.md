@@ -85,34 +85,40 @@ function CopyBlock({ command }: { command: string }) {
 export default function HomePage() {
   const slides = [
     {
-      title: "Repo layout",
-      footer: "Stable ticket definitions. Append-only run logs.",
+      title: "Target repo layout",
+      footer: "What `@picoai/tickets` adds to a repo that uses it.",
       code: `.
 ├── TICKETS.md
-├── AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
-└── .tickets/
-    ├── spec/
-    │   └── version/
-    └── <ticket-id>/
-        ├── ticket.md
-        └── logs/
-            └── <run>.jsonl`
+├── .tickets/
+│   ├── config.yml
+│   ├── skills/tickets/SKILL.md
+│   └── <ticket-id>/
+│       ├── ticket.md
+│       └── logs/<run>.jsonl
+└── AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
+`
     },
     {
       title: "CLI touchpoints",
-      footer: "Validate, log runs, and keep history local.",
+      footer: "Validate, plan, claim, and keep state changes local.",
       code: `npx @picoai/tickets validate
-npx @picoai/tickets log --ticket <id> --actor-type agent --summary "..." --machine`
+npx @picoai/tickets plan --format json
+npx @picoai/tickets claim --ticket <id>`
     },
     {
-      title: "Ticket anatomy",
-      footer: "Keep tickets readable; move history to logs.",
+      title: "Planning anatomy",
+      footer: "Generic primitives power features, phases, milestones, and roadmap views.",
       code: `Front matter (YAML)
 ---
 id: <uuidv7>
 title: "... "
 status: todo
 created_at: 2026-01-29T18:42:10Z
+planning:
+  node_type: work
+  lane: build
+  rank: 2
+  horizon: current
 ---
 # Ticket
 ## Description
@@ -224,9 +230,9 @@ created_at: 2026-01-29T18:42:10Z
           <div className="heroLeft">
             <h1 className="h1">Tickets that work with agents.</h1>
             <p className="lead">
-              A simple, flexible ticket format and CLI designed for parallel,
-              long-running agentic development — without requiring a hosted service
-              or network access.
+              A repo-native ticket format and CLI for parallel, long-running
+              agentic development, with generic planning primitives, append-only
+              logs, and optional advisory claims.
             </p>
 
             <div className="heroActions">
@@ -328,7 +334,8 @@ created_at: 2026-01-29T18:42:10Z
             development by providing a <strong>clear agent contract</strong>, an{" "}
             <strong>open</strong> and{" "}
             <strong>merge friendly in-repo ticket+context format</strong>, and{" "}
-            <strong>simple tooling</strong> for the agent to work with tickets.
+            <strong>simple tooling</strong> for the agent to work with tickets,
+            planning views, and claims.
           </p>
           <div className="listGrid">
             <div className="listGridIcon" aria-hidden="true">
@@ -406,10 +413,10 @@ created_at: 2026-01-29T18:42:10Z
                   <CopyBlock command="npx @picoai/tickets init" />
 
                   <div className="qsStepTitle">Create a ticket</div>
-                  <div className="qsStepDesc">
+              <div className="qsStepDesc">
                     Create your first ticket; the CLI prints the UUIDv7 and creates its folder.
                   </div>
-                  <CopyBlock command='npx @picoai/tickets new --title "Short title"' />
+                  <CopyBlock command='npx @picoai/tickets new --title "Feature Alpha" --node-type group --lane build --horizon current' />
                 </div>
               </div>
 
@@ -417,27 +424,28 @@ created_at: 2026-01-29T18:42:10Z
                 <div className="quickstartPane">
                   <div className="qsCardTitle">Anatomy of TICKETS.md</div>
                   <div className="qsStepDesc">
-                    Initializing tickets in your repo will write the key files needed to manage ticket tracking.
+                    Initializing a repo with `@picoai/tickets` writes the key files needed to manage ticket tracking, overrides, and repo-local skill loading.
                   </div>
                   <div className="codeBlock">
                     <pre className="codeBlockCode">
                       <code>{`.
 ├── TICKETS.md
-├── AGENTS_EXAMPLE.md (or AGENTS.md with --apply)
 └── .tickets/
-    ├── spec/
-    │   └── version/
+    ├── config.yml
+    ├── skills/tickets/SKILL.md
     └── <ticket-id>/
         ├── ticket.md
-        └── logs/
-            └── <run>.jsonl`}</code>
+        └── logs/<run>.jsonl`}</code>
                     </pre>
                   </div>
                   <div className="qsStepDesc">
-                    Each ticket gets its own folder, a human readable Markdown definition, and append-only JSONL structured logs.
+                    Each ticket gets its own folder, a human readable Markdown definition, a repo-local config for semantic overrides, and append-only JSONL structured logs.
                   </div>
                   <div className="qsStepDesc">
-                    Updates and context live in merge friendly logs, not a single file.
+                    Updates, claims, and carried context live in merge friendly logs, not a single mutable state file.
+                  </div>
+                  <div className="qsStepDesc">
+                    This layout shows the files the package adds to a repo that uses it. It is not the layout of this package's source repo.
                   </div>
                 </div>
               </div>

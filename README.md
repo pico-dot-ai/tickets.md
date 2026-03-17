@@ -1,124 +1,92 @@
-# TICKETS.md
+# @picoai/tickets
 
-## About TICKETS.md
+This repository contains the source code for the `@picoai/tickets` npm package.
 
-This repository specifies a repo-native ticketing system designed for **parallel, long-running agentic work** and normal human collaboration, without relying on external services or internet access.
+If you are working here, you are changing the package itself:
+- the CLI in `packages/tickets/src`
+- the tests in `packages/tickets/tests`
+- the docs site in `apps/site`
+- the templates and specs the package installs into other repos
 
-**TICKETS.md** explains the workflow, file formats, and required tool usage for both humans and agents. If there is ever a conflict between this file and other docs, follow this file.
+## Where Things Live
 
-## What this system is
+- `packages/tickets/src`: CLI implementation
+- `packages/tickets/tests`: package tests
+- `packages/tickets/.tickets/spec`: templates, defaults, and versioned specs shipped by the package
+- `packages/tickets/README.md`: package-level documentation
+- `apps/site`: documentation site
 
-- A lightweight, Markdown-first ticket format stored under `/.tickets/` in consumer repos.
-- A merge-friendly history model: **append-only JSONL run logs**, one file per run, per ticket.
-- A repo-local CLI (`npx @picoai/tickets`) that is the **single integration surface** for humans, agents, and IDE/agentic tooling.
+## What The Package Installs Elsewhere
 
-## What this is trying to do
+When someone runs `@picoai/tickets` in another repo, the package can create and maintain files like:
+- `TICKETS.md`
+- an `AGENTS.md` workflow block via `init --apply`
+- `/.tickets/config.yml`
+- `/.tickets/skills/tickets/SKILL.md`
+- `/.tickets/spec/version/*`
 
-Parallel, long-running agentic work fails in predictable ways:
-- Agents lose context across runs/sandboxes.
-- Ticket state can drift across branches before merge (eventual consistency).
-- Shared mutable log files are merge-conflict hotspots.
-- Agents can loop without clear done criteria or verification steps.
+Those files are package assets. They help explain how the package works, but they are not the working layout of this repository.
 
-This system addresses those problems with stable `ticket.md` files, merge-friendly per-run logs, and explicit acceptance + verification + bounded iteration guidance.
+The canonical copies live under `packages/tickets/.tickets/spec/`.
 
-## Spec Version
+## What The Package Supports
 
-- `version`: 2
-- `version_url`: `version/20260311-tickets-spec.md`
-- Canonical source in this repo: `packages/tickets/.tickets/spec/version/20260311-tickets-spec.md`
+The current package includes:
+- spec v3
+- a generic planning model in ticket front matter
+- repo-level semantic overrides through `.tickets/config.yml`
+- optional advisory claims for swarm coordination
+- the same workflow available through both `TICKETS.md` and `.tickets/skills/tickets/SKILL.md`
 
-Version definitions live under `packages/tickets/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
+Default semantic mapping:
+- `feature` -> `planning.node_type=group`
+- `phase` -> `planning.lane`
+- `milestone` -> `planning.node_type=checkpoint`
+- `roadmap` -> `planning.horizon`
 
-## Release Provenance
+Key shipped files:
+- `packages/tickets/.tickets/spec/TICKETS.md`
+- `packages/tickets/.tickets/spec/AGENTS_EXAMPLE.md`
+- `packages/tickets/.tickets/spec/profile/defaults.yml`
+- `packages/tickets/.tickets/spec/version/20260317-tickets-spec.md`
 
-- Latest npm release: `@picoai/tickets`
-- Latest published version: `0.2.0`
-- Published from commit: `e1ed363`
-- Append-only release ledger: `packages/tickets/release-history.json`
+## Where To Make A Change
 
-Check current release posture locally:
+- change CLI behavior in `packages/tickets/src`
+- change validation or repair behavior in `packages/tickets/src` and `packages/tickets/tests`
+- change shipped templates, defaults, or specs in `packages/tickets/.tickets/spec`
+- change package docs in `packages/tickets/README.md`
+- change the docs site in `apps/site`
 
-```bash
-npm run release:status
-```
+The root docs explain how to work on this package. The files under `packages/tickets/.tickets/spec/` are the copies the package ships.
 
-Recommended process:
-- after an npm publish succeeds, append a new entry to `packages/tickets/release-history.json`
-- use `npm run release:status` to see whether HEAD is ahead of the last recorded npm release and whether the package version still needs a bump
-
-## Quickstart: Initialize a Repo
-
-Assuming `@picoai/tickets` is already installed in your target repo:
-
-```bash
-npx @picoai/tickets init
-```
-
-This bootstraps ticketing assets in the target repository by creating:
-- root `TICKETS.md`
-- root `AGENTS_EXAMPLE.md`
-- root `/.tickets/spec/version/` with version definition files
-
-Optional apply mode:
-
-```bash
-npx @picoai/tickets init --apply
-```
-
-`--apply` updates managed sections while preserving user-owned content:
-- updates the managed block in root `TICKETS.md`
-- creates or updates the `## Ticketing Workflow` block in root `AGENTS.md`
-- does not create `AGENTS_EXAMPLE.md` when applying directly to `AGENTS.md`
-
-## Repository structure
-
-```text
-.
-├── TICKETS.md
-├── apps/
-│   └── site/
-└── packages/
-    └── tickets/
-```
+Do not work on this repository as though the package had been initialized into it. In particular, do not use `init --apply` to maintain the root docs.
 
 ## Workspaces
 
-This repo uses npm workspaces.
+- `@picoai/tickets`: `packages/tickets`
+- `@picoai/tickets-site`: `apps/site`
 
-- Site workspace: `@picoai/tickets-site` in `apps/site`
-- Package workspace: `@picoai/tickets` in `packages/tickets`
-
-## Common commands (from repo root)
+## Common Commands
 
 ```bash
 npm install
-npm run dev         # website dev server
-npm run build       # website production build
-npm run test        # package tests
+npm run test
+npm run test:cli
+npm run build
 npm run tickets -- --help
 ```
 
-## Package usage
+## Before You Finish
 
-From any target repo:
+If you changed package behavior, check:
+- tests still pass
+- shipped templates and specs still match the implementation
+- package docs still describe the shipped behavior clearly
+- root docs still read like maintainer docs, not installed package files
 
-```bash
-npx @picoai/tickets init
-npx @picoai/tickets init --apply
-npx @picoai/tickets new --title "Short title"
-npx @picoai/tickets validate
-```
+## References
 
-## CLI Command Reference
-
-For the complete `@picoai/tickets` command and option documentation, see:
-- `packages/tickets/README.md` (`Command Reference` section)
-
-## Canonical docs
-
-- Contract: `TICKETS.md`
-- Agent bootstrap template source: `packages/tickets/.tickets/spec/AGENTS_EXAMPLE.md`
-- Versioned format docs source: `packages/tickets/.tickets/spec/version/`
+- Contributor workflow: `AGENTS.md`
+- Shipped package README: `packages/tickets/README.md`
 - Contribution guide: `CONTRIBUTING.md`
-- Code of Conduct: `CODE_OF_CONDUCT.md`

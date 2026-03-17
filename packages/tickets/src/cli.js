@@ -8,12 +8,20 @@ import yaml from "yaml";
 import {
   ASSIGNMENT_MODE_VALUES,
   BASE_DIR,
+  DEFAULT_CLAIM_TTL_MINUTES,
   FORMAT_VERSION,
   FORMAT_VERSION_URL,
+  GRAPH_VIEW_VALUES,
+  PLANNING_NODE_TYPES,
   PRIORITY_VALUES,
+  RESOLUTION_VALUES,
   STATUS_VALUES,
 } from "./lib/constants.js";
+import { deriveActiveClaim, loadClaimEvents } from "./lib/claims.js";
+import { loadWorkflowProfile, validateRepoConfig } from "./lib/config.js";
 import { listTickets } from "./lib/listing.js";
+import { buildGraphData, buildPlanSummary, buildPlanningSnapshot } from "./lib/planning.js";
+import { syncRepoConfig, syncRepoSkill } from "./lib/projections.js";
 import { applyRepairs, loadIssuesFile, runInteractive } from "./lib/repair.js";
 import { collectTicketPaths, validateRunLog, validateTicket } from "./lib/validation.js";
 import {
@@ -88,7 +96,7 @@ function normalizeContextItems(values) {
 
 function printIssues(issues) {
   for (const issue of issues) {
-    const location = issue.ticket_path ?? issue.log ?? "";
+    const location = issue.ticket_path ?? issue.log ?? issue.config_path ?? "";
     process.stdout.write(`${String(issue.severity ?? "?").toUpperCase()}: ${issue.message} (${location})\n`);
   }
 }
@@ -236,90 +244,7 @@ function buildRepairsFromIssues(issues, options = {}) {
   return repairs;
 }
 
-function loadNodeById(ticketId) {
-  const ticketPath = path.join(ticketsDir(), ticketId, "ticket.md");
-  if (fs.existsSync(ticketPath)) {
-    try {
-      const [frontMatter] = loadTicket(ticketPath);
-      return {
-        id: ticketId,
-        title: frontMatter.title ?? ticketId,
-        status: frontMatter.status ?? "",
-        priority: frontMatter.priority,
-        owner: frontMatter.assignment?.owner,
-        mode: frontMatter.assignment?.mode,
-        path: ticketPath,
-      };
-    } catch {
-      // ignore
-    }
-  }
-
-  return {
-    id: ticketId,
-    title: ticketId,
-    status: "",
-    path: `/.tickets/${ticketId}/ticket.md`,
-  };
-}
-
-function loadTicketGraph(ticketRef) {
-  const nodes = new Map();
-  const edges = [];
-  const paths = collectTicketPaths(ticketRef);
-  let rootId = null;
-
-  for (const ticketPath of paths) {
-    const [frontMatter] = loadTicket(ticketPath);
-    const ticketId = frontMatter.id;
-    if (!ticketId) {
-      continue;
-    }
-
-    if (ticketRef && !rootId) {
-      rootId = ticketId;
-    }
-
-    nodes.set(ticketId, {
-      id: ticketId,
-      title: frontMatter.title ?? "",
-      status: frontMatter.status ?? "",
-      priority: frontMatter.priority,
-      owner: frontMatter.assignment?.owner,
-      mode: frontMatter.assignment?.mode,
-      path: ticketPath,
-    });
-
-    for (const dependency of frontMatter.dependencies ?? []) {
-      if (!nodes.has(dependency)) {
-        nodes.set(dependency, loadNodeById(dependency));
-      }
-      edges.push({ type: "dependency", from: dependency, to: ticketId });
-    }
-
-    for (const blocked of frontMatter.blocks ?? []) {
-      if (!nodes.has(blocked)) {
-        nodes.set(blocked, loadNodeById(blocked));
-      }
-      edges.push({ type: "blocks", from: ticketId, to: blocked });
-    }
-
-    for (const related of frontMatter.related ?? []) {
-      if (!nodes.has(related)) {
-        nodes.set(related, loadNodeById(related));
-      }
-      edges.push({ type: "related", from: ticketId, to: related });
-    }
-  }
-
-  return {
-    nodes: [...nodes.values()],
-    edges,
-    root_id: rootId,
-  };
-}
-
-function renderMermaid(graph, includeRelated, timestamp) {
+function renderMermaid(graph, includeRelated, timestamp, view) {
   const statusClasses = {
     todo: "fill:#ddd,stroke:#999",
     doing: "fill:#d0e7ff,stroke:#3b82f6",
@@ -329,7 +254,7 @@ function renderMermaid(graph, includeRelated, timestamp) {
   };
 
   const lines = [
-    "# Ticket dependency graph",
+    `# Ticket ${view} graph`,
     `_Generated at ${timestamp} UTC_`,
     "",
     "```mermaid",
@@ -356,7 +281,8 @@ function renderMermaid(graph, includeRelated, timestamp) {
     if (!source || !target) {
       continue;
     }
-    lines.push(`  ${source} --> ${target}`);
+    const connector = edge.type === "contains" ? "-.->" : "-->";
+    lines.push(`  ${source} ${connector}|${edge.type}| ${target}`);
   }
 
   for (const [status, style] of Object.entries(statusClasses)) {
@@ -403,8 +329,8 @@ function renderDot(graph, includeRelated) {
     if (!source || !target) {
       continue;
     }
-    const style = edge.type === "related" ? "dashed" : "solid";
-    lines.push(`  ${source} -> ${target} [style=${style}];`);
+    const style = ["related", "contains"].includes(edge.type) ? "dashed" : "solid";
+    lines.push(`  ${source} -> ${target} [style=${style}, label="${edge.type}"];`);
   }
 
   lines.push("}");
@@ -727,6 +653,7 @@ function generateExampleTickets() {
       status: "doing",
       priority: "high",
       labels: ["epic", "planning"],
+      planning: { node_type: "group", lane: "build", rank: 1, horizon: "current" },
       assignment: { mode: "mixed", owner: "team:core" },
       related: ["backend", "frontend", "testing", "docs", "release"],
       agent_limits: {
@@ -760,6 +687,7 @@ function generateExampleTickets() {
       status: "doing",
       priority: "high",
       labels: ["backend", "api"],
+      planning: { node_type: "work", group_ids: ["parent"], lane: "build", rank: 1, horizon: "current", precedes: ["frontend", "testing"] },
       assignment: { mode: "agent_only", owner: "agent:codex" },
       dependencies: ["parent"],
       blocks: ["frontend", "testing", "release"],
@@ -782,6 +710,11 @@ function generateExampleTickets() {
           created_from: "parent",
           context: ["Acceptance criteria from parent", "Release target"],
         },
+        {
+          summary: "Agent claimed backend work.",
+          event_type: "claim",
+          claim: { action: "acquire", holder_id: "agent:codex", holder_type: "agent", ttl_minutes: 60 },
+        },
       ],
     },
     {
@@ -790,6 +723,7 @@ function generateExampleTickets() {
       status: "todo",
       priority: "medium",
       labels: ["frontend", "ui"],
+      planning: { node_type: "work", group_ids: ["parent"], lane: "build", rank: 2, horizon: "current" },
       dependencies: ["backend"],
       related: ["testing"],
       verification: { commands: ["npm test", "npm run lint"] },
@@ -813,6 +747,7 @@ function generateExampleTickets() {
       status: "todo",
       priority: "medium",
       labels: ["qa"],
+      planning: { node_type: "work", group_ids: ["parent"], lane: "verify", rank: 1, horizon: "current" },
       dependencies: ["backend", "frontend"],
       verification: { commands: ["npm test"] },
       body: {
@@ -835,6 +770,7 @@ function generateExampleTickets() {
       status: "todo",
       priority: "low",
       labels: ["docs"],
+      planning: { node_type: "work", group_ids: ["parent"], lane: "launch", rank: 2, horizon: "next" },
       dependencies: ["testing"],
       verification: { commands: ["npm run lint:docs"] },
       body: {
@@ -857,6 +793,7 @@ function generateExampleTickets() {
       status: "todo",
       priority: "high",
       labels: ["release"],
+      planning: { node_type: "checkpoint", group_ids: ["parent"], lane: "launch", rank: 1, horizon: "current" },
       dependencies: ["testing"],
       blocks: ["bugfix"],
       verification: { commands: ["npx @picoai/tickets validate"] },
@@ -876,9 +813,11 @@ function generateExampleTickets() {
     {
       key: "bugfix",
       title: "Bugfix: address regression found during Alpha",
-      status: "blocked",
+      status: "canceled",
       priority: "high",
       labels: ["bug", "regression"],
+      planning: { node_type: "work", group_ids: ["parent"], lane: "build", rank: 3, horizon: "current" },
+      resolution: "dropped",
       dependencies: ["backend"],
       related: ["testing"],
       verification: { commands: ["npm test"] },
@@ -889,9 +828,9 @@ function generateExampleTickets() {
       },
       logs: [
         {
-          summary: "Blocked until backend fix lands.",
+          summary: "Dropped after mitigation in backend workstream.",
           context: ["Regression repro identified", "Awaiting backend deployment before retry"],
-          blockers: ["Awaiting backend deployment"],
+          decisions: ["Folded remediation into backend ticket"],
         },
       ],
     },
@@ -919,6 +858,16 @@ function generateExampleTickets() {
     }
     if (spec.assignment) {
       frontMatter.assignment = spec.assignment;
+    }
+    if (spec.planning) {
+      frontMatter.planning = {
+        ...spec.planning,
+        group_ids: spec.planning.group_ids?.map((value) => ids[value]) ?? spec.planning.group_ids,
+        precedes: spec.planning.precedes?.map((value) => ids[value]) ?? spec.planning.precedes,
+      };
+    }
+    if (spec.resolution) {
+      frontMatter.resolution = spec.resolution;
     }
     for (const relationshipKey of ["dependencies", "blocks", "related"]) {
       if (spec[relationshipKey]) {
@@ -959,12 +908,13 @@ function generateExampleTickets() {
         actor_type: "agent",
         actor_id: "tickets-init",
         summary: logSpec.summary,
-        event_type: "work",
+        event_type: logSpec.event_type ?? "work",
         written_by: "tickets",
       };
 
       for (const key of [
         "context",
+        "claim",
         "decisions",
         "next_steps",
         "blockers",
@@ -979,6 +929,12 @@ function generateExampleTickets() {
           logEntry[key] = logSpec[key].map((value) => ids[value]);
         } else if (key === "created_from") {
           logEntry[key] = ids[logSpec[key]] ?? logSpec[key];
+        } else if (key === "claim") {
+          logEntry.claim = {
+            ...logSpec.claim,
+            claim_id: newUuidv7().toLowerCase(),
+            expires_at: iso8601(new Date(now.getTime() + (logSpec.claim.ttl_minutes ?? 60) * 60 * 1000)),
+          };
         } else {
           logEntry[key] = logSpec[key];
         }
@@ -997,6 +953,8 @@ async function cmdInit(options) {
   const apply = Boolean(options.apply);
 
   syncTicketsMd(root, apply);
+  syncRepoConfig(root);
+  syncRepoSkill(root, apply);
 
   const agentsPath = path.join(root, "AGENTS_EXAMPLE.md");
   const agentsTemplatePath = path.join(".tickets", "spec", "AGENTS_EXAMPLE.md");
@@ -1009,8 +967,15 @@ async function cmdInit(options) {
   const versionDir = path.join(repoBaseDir, "version");
   ensureDir(versionDir);
 
-  const currentSpecPath = path.join(versionDir, "20260311-tickets-spec.md");
-  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260311-tickets-spec.md"), apply);
+  const currentSpecPath = path.join(versionDir, "20260317-tickets-spec.md");
+  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260317-tickets-spec.md"), apply);
+
+  const previousCurrentSpecPath = path.join(versionDir, "20260311-tickets-spec.md");
+  writeTemplateFile(
+    previousCurrentSpecPath,
+    path.join(".tickets", "spec", "version", "20260311-tickets-spec.md"),
+    apply,
+  );
 
   const previousSpecPath = path.join(versionDir, "20260205-tickets-spec.md");
   writeTemplateFile(previousSpecPath, path.join(".tickets", "spec", "version", "20260205-tickets-spec.md"), apply);
@@ -1028,6 +993,7 @@ async function cmdInit(options) {
 
 async function cmdNew(options) {
   ensureDir(ticketsDir());
+  const profile = loadWorkflowProfile();
   const ticketId = newUuidv7().toLowerCase();
   const ticketDir = path.join(ticketsDir(), ticketId);
   ensureDir(path.join(ticketDir, "logs"));
@@ -1084,6 +1050,17 @@ async function cmdNew(options) {
   if (options.verificationCommands?.length) {
     frontMatter.verification = { commands: options.verificationCommands };
   }
+  frontMatter.planning = {
+    node_type: options.nodeType || profile.defaults?.planning?.node_type || "work",
+    group_ids: options.groupIds?.length ? options.groupIds : [],
+    lane: options.lane ?? null,
+    rank: options.rank ?? null,
+    horizon: options.horizon ?? null,
+    precedes: options.precedes?.length ? options.precedes : [],
+  };
+  if (options.resolution) {
+    frontMatter.resolution = options.resolution;
+  }
 
   const body = [
     "# Ticket",
@@ -1109,6 +1086,8 @@ async function cmdNew(options) {
 async function cmdValidate(options) {
   const ticketPaths = collectTicketPaths(options.ticket);
   const issues = [];
+
+  issues.push(...validateRepoConfig(repoRoot()));
 
   for (const ticketPath of ticketPaths) {
     const [ticketIssues] = validateTicket(ticketPath, options.allFields);
@@ -1262,6 +1241,13 @@ async function cmdList(options) {
     owner: options.owner,
     label: options.label,
     text: options.text,
+    nodeType: options.nodeType,
+    group: options.group,
+    lane: options.lane,
+    horizon: options.horizon,
+    claimed: Boolean(options.claimed),
+    claimedBy: options.claimedBy,
+    ready: Boolean(options.ready),
   });
 
   if (options.json) {
@@ -1274,12 +1260,138 @@ async function cmdList(options) {
     return 0;
   }
 
-  const headers = ["id", "title", "status", "priority", "owner", "mode", "last_updated"];
+  const headers = [
+    "id",
+    "title",
+    "status",
+    "priority",
+    "node_type",
+    "lane",
+    "rank",
+    "horizon",
+    "ready",
+    "owner",
+    "mode",
+    "last_updated",
+  ];
   process.stdout.write(`${headers.join(" | ")}\n`);
   for (const row of rows) {
     process.stdout.write(`${headers.map((key) => String(row[key] ?? "")).join(" | ")}\n`);
   }
 
+  return 0;
+}
+
+async function cmdPlan(options) {
+  const summary = buildPlanSummary({
+    group: options.group ?? options.root ?? null,
+    horizon: options.horizon ?? null,
+  });
+
+  if (options.format === "json") {
+    process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    return 0;
+  }
+
+  process.stdout.write("Ready queue\n");
+  for (const row of summary.ready) {
+    process.stdout.write(
+      `${row.id} | ${row.title} | lane=${row.lane ?? ""} | rank=${row.rank ?? ""} | horizon=${row.horizon ?? ""}\n`,
+    );
+  }
+  process.stdout.write("\nGroups\n");
+  for (const group of summary.groups) {
+    const rollup = group.rollup ?? {};
+    process.stdout.write(
+      `${group.id} | ${group.title} | ${group.node_type} | ${rollup.done_completed ?? 0}/${rollup.active_leaf ?? 0} complete | merged=${rollup.merged ?? 0} | dropped=${rollup.dropped ?? 0}\n`,
+    );
+  }
+
+  return 0;
+}
+
+async function cmdClaim(options) {
+  const ticketPath = resolveTicketPath(options.ticket);
+  const logsDir = path.join(path.dirname(ticketPath), "logs");
+  ensureDir(logsDir);
+  const profile = loadWorkflowProfile();
+
+  const actorId = resolveActorId(options.actorId);
+  const actorType = resolveActorType(options.actorType, actorId);
+  const events = loadClaimEvents(logsDir);
+  const activeClaim = deriveActiveClaim(events, nowUtc());
+  const runId = options.runId || newUuidv7();
+  const runStarted = (options.runStarted || isoBasic(nowUtc())).replaceAll(" ", "");
+  const ttlMinutes = options.ttlMinutes || profile.defaults?.claims?.ttl_minutes || DEFAULT_CLAIM_TTL_MINUTES;
+  const now = nowUtc();
+
+  let action;
+  let summary;
+  let claimId = newUuidv7().toLowerCase();
+  let supersedesClaimId = null;
+
+  if (options.release) {
+    if (!activeClaim) {
+      process.stdout.write("No active claim.\n");
+      return 1;
+    }
+    if (activeClaim.holder_id !== actorId && !options.force) {
+      process.stdout.write(`Ticket is claimed by ${activeClaim.holder_id} until ${activeClaim.expires_at}.\n`);
+      return 1;
+    }
+    if (activeClaim.holder_id !== actorId && options.force && !options.reason) {
+      throw new Error("Forced claim release requires --reason");
+    }
+    action = "release";
+    claimId = activeClaim.claim_id;
+    summary = `Released claim ${claimId}`;
+  } else if (activeClaim && activeClaim.holder_id === actorId) {
+    action = "renew";
+    claimId = activeClaim.claim_id;
+    summary = `Renewed claim ${claimId}`;
+  } else if (activeClaim && activeClaim.holder_id !== actorId) {
+    if (!options.force) {
+      process.stdout.write(`Ticket is claimed by ${activeClaim.holder_id} until ${activeClaim.expires_at}.\n`);
+      return 1;
+    }
+    if (!options.reason) {
+      throw new Error("Forced claim override requires --reason");
+    }
+    action = "override";
+    supersedesClaimId = activeClaim.claim_id;
+    summary = `Overrode claim ${activeClaim.claim_id}`;
+  } else {
+    action = "acquire";
+    summary = `Acquired claim ${claimId}`;
+  }
+
+  const entry = {
+    version: FORMAT_VERSION,
+    version_url: FORMAT_VERSION_URL,
+    ts: iso8601(now),
+    run_started: runStarted,
+    actor_type: actorType,
+    actor_id: actorId,
+    summary,
+    event_type: "claim",
+    written_by: "tickets",
+    claim: {
+      action,
+      claim_id: claimId,
+      holder_id: actorId,
+      holder_type: actorType,
+      reason: options.reason ?? "",
+      supersedes_claim_id: supersedesClaimId,
+    },
+  };
+
+  if (action !== "release") {
+    entry.claim.ttl_minutes = ttlMinutes;
+    entry.claim.expires_at = iso8601(new Date(now.getTime() + ttlMinutes * 60 * 1000));
+  }
+
+  appendJsonl(path.join(logsDir, `${runStarted}-${runId}.jsonl`), entry);
+  process.stdout.write(`${summary}\n`);
   return 0;
 }
 
@@ -1354,7 +1466,12 @@ async function cmdRepair(options) {
 }
 
 async function cmdGraph(options) {
-  const graph = loadTicketGraph(options.ticket);
+  const snapshot = buildPlanningSnapshot();
+  const graph = buildGraphData(snapshot, {
+    ticket: options.ticket,
+    view: options.view,
+    includeRelated: options.related,
+  });
   if (graph.nodes.length === 0) {
     process.stdout.write("No tickets found.\n");
     return 1;
@@ -1365,8 +1482,8 @@ async function cmdGraph(options) {
 
   const timestamp = isoBasic(nowUtc());
   const base = options.ticket
-    ? `dependencies_for_${graph.root_id || "subset"}`
-    : "dependencies";
+    ? `${options.view}_for_${graph.root_id || "subset"}`
+    : options.view;
   const ext = { mermaid: "md", dot: "dot", json: "json" }[options.format];
   const outPath = options.output
     ? path.resolve(repoRoot(), options.output)
@@ -1378,7 +1495,7 @@ async function cmdGraph(options) {
   } else if (options.format === "dot") {
     fs.writeFileSync(outPath, renderDot(graph, options.related));
   } else {
-    fs.writeFileSync(outPath, renderMermaid(graph, options.related, timestamp));
+    fs.writeFileSync(outPath, renderMermaid(graph, options.related, timestamp, options.view));
   }
 
   process.stdout.write(`${outPath}\n`);
@@ -1419,6 +1536,13 @@ export async function run(argv = process.argv.slice(2)) {
     .option("--checkpoint-every-minutes <minutes>")
     .option("--verification-command <command>", "Verification command", collectOption, [])
     .option("--created-at <timestamp>")
+    .option("--node-type <nodeType>")
+    .option("--group-id <groupId>", "Group membership ticket id", collectOption, [])
+    .option("--lane <lane>")
+    .option("--rank <rank>")
+    .option("--horizon <horizon>")
+    .option("--precedes <ticketId>", "Sequence successor ticket id", collectOption, [])
+    .option("--resolution <resolution>")
     .action(async (options) => {
       if (!STATUS_VALUES.includes(options.status)) {
         throw new Error(`Invalid --status. Use one of: ${STATUS_VALUES.join(", ")}`);
@@ -1430,6 +1554,21 @@ export async function run(argv = process.argv.slice(2)) {
         throw new Error(
           `Invalid --assignment-mode. Use one of: ${ASSIGNMENT_MODE_VALUES.join(", ")}`,
         );
+      }
+      if (options.nodeType && !PLANNING_NODE_TYPES.includes(options.nodeType)) {
+        throw new Error(`Invalid --node-type. Use one of: ${PLANNING_NODE_TYPES.join(", ")}`);
+      }
+      if (options.resolution && !RESOLUTION_VALUES.includes(options.resolution)) {
+        throw new Error(`Invalid --resolution. Use one of: ${RESOLUTION_VALUES.join(", ")}`);
+      }
+      if (options.rank) {
+        const rank = Number.parseInt(options.rank, 10);
+        if (!Number.isInteger(rank) || rank <= 0) {
+          throw new Error("Invalid --rank. Use a positive integer");
+        }
+      }
+      if (options.resolution && !["done", "canceled"].includes(options.status)) {
+        throw new Error("Resolution requires terminal status done or canceled");
       }
       process.exitCode = await cmdNew({
         title: options.title,
@@ -1451,6 +1590,13 @@ export async function run(argv = process.argv.slice(2)) {
           : undefined,
         verificationCommands: options.verificationCommand,
         createdAt: options.createdAt,
+        nodeType: options.nodeType,
+        groupIds: options.groupId,
+        lane: options.lane,
+        rank: options.rank ? Number.parseInt(options.rank, 10) : null,
+        horizon: options.horizon,
+        precedes: options.precedes,
+        resolution: options.resolution,
       });
     });
 
@@ -1550,9 +1696,30 @@ export async function run(argv = process.argv.slice(2)) {
     .option("--owner <owner>")
     .option("--label <label>")
     .option("--text <text>")
+    .option("--node-type <nodeType>")
+    .option("--group <ticketId>")
+    .option("--lane <lane>")
+    .option("--horizon <horizon>")
+    .option("--claimed", "Only show claimed tickets")
+    .option("--claimed-by <actorId>")
+    .option("--ready", "Only show ready tickets")
     .option("--json", "JSON output")
     .action(async (options) => {
       process.exitCode = await cmdList(options);
+    });
+
+  program
+    .command("plan")
+    .description("Summarize portfolio rollups and ready work")
+    .option("--root <ticket>")
+    .option("--group <ticket>")
+    .option("--horizon <horizon>")
+    .option("--format <format>", "table | json", "table")
+    .action(async (options) => {
+      if (!["table", "json"].includes(options.format)) {
+        throw new Error("Invalid --format. Use one of: table, json");
+      }
+      process.exitCode = await cmdPlan(options);
     });
 
   program
@@ -1577,9 +1744,10 @@ export async function run(argv = process.argv.slice(2)) {
 
   program
     .command("graph")
-    .description("Dependency graph")
+    .description("Ticket graph")
     .option("--ticket <ticket>")
     .option("--format <format>", "mermaid | dot | json", "mermaid")
+    .option("--view <view>", "dependency | sequence | portfolio | all", "dependency")
     .option("--output <file>")
     .option("--related", "Include related edges")
     .option("--no-related", "Exclude related edges")
@@ -1587,11 +1755,50 @@ export async function run(argv = process.argv.slice(2)) {
       if (!["mermaid", "dot", "json"].includes(options.format)) {
         throw new Error("Invalid --format. Use one of: mermaid, dot, json");
       }
+      if (!GRAPH_VIEW_VALUES.includes(options.view)) {
+        throw new Error(`Invalid --view. Use one of: ${GRAPH_VIEW_VALUES.join(", ")}`);
+      }
       process.exitCode = await cmdGraph({
         ticket: options.ticket,
         format: options.format,
+        view: options.view,
         output: options.output,
         related: options.related,
+      });
+    });
+
+  program
+    .command("claim")
+    .description("Acquire, renew, release, or override an advisory ticket claim")
+    .requiredOption("--ticket <ticket>")
+    .option("--actor-type <actorType>")
+    .option("--actor-id <actorId>")
+    .option("--run-id <runId>")
+    .option("--run-started <runStarted>")
+    .option("--ttl-minutes <minutes>")
+    .option("--release", "Release the active claim")
+    .option("--force", "Override an active claim held by another actor")
+    .option("--reason <reason>")
+    .action(async (options) => {
+      if (options.actorType && !isValidActorType(options.actorType)) {
+        throw new Error("Invalid --actor-type. Use one of: human, agent");
+      }
+      if (options.ttlMinutes) {
+        const ttl = Number.parseInt(options.ttlMinutes, 10);
+        if (!Number.isInteger(ttl) || ttl <= 0) {
+          throw new Error("Invalid --ttl-minutes. Use a positive integer");
+        }
+      }
+      process.exitCode = await cmdClaim({
+        ticket: options.ticket,
+        actorType: options.actorType,
+        actorId: options.actorId,
+        runId: options.runId,
+        runStarted: options.runStarted,
+        ttlMinutes: options.ttlMinutes ? Number.parseInt(options.ttlMinutes, 10) : undefined,
+        release: Boolean(options.release),
+        force: Boolean(options.force),
+        reason: options.reason,
       });
     });
 
