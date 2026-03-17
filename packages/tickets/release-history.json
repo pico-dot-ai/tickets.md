@@ -14,6 +14,13 @@
       "date": "2026-03-11",
       "channel": "latest",
       "notes": "Published to npm"
+    },
+    {
+      "version": "0.3.0",
+      "commit": "b6862fb",
+      "date": "2026-03-17",
+      "channel": "latest",
+      "notes": "Published to npm"
     }
   ]
 }
