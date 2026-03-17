@@ -333,9 +333,9 @@ planning:
             <strong>TICKETS.md</strong> aims to address common issues with agentic
             development by providing a <strong>clear agent contract</strong>, an{" "}
             <strong>open</strong> and{" "}
-            <strong>merge friendly in-repo ticket+context format</strong>, and{" "}
-            <strong>simple tooling</strong> for the agent to work with tickets,
-            planning views, and claims.
+            <strong>merge friendly in-repo ticket+context format</strong>, with{" "}
+            <strong>skill support</strong> and <strong>simple tooling</strong>{" "}
+            for the agent to work with tickets, planning views, and claims.
           </p>
           <div className="listGrid">
             <div className="listGridIcon" aria-hidden="true">
