@@ -230,9 +230,10 @@ planning:
           <div className="heroLeft">
             <h1 className="h1">Tickets that work with agents.</h1>
             <p className="lead">
-              A repo-native ticket format and CLI for parallel, long-running
-              agentic development, with generic planning primitives, append-only
-              logs, and optional advisory claims.
+              A repo-native ticket format and CLI ideal for sandboxed
+              environments. Structured for parallel, long-running agentic
+              development, with generic planning primitives, append-only logs,
+              and agent ticket claims.
             </p>
 
             <div className="heroActions">
