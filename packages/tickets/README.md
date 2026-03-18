@@ -24,8 +24,8 @@ The system is designed for teams that want ticket state to live in the repo, sta
 ## Spec version
 
 - `version`: 3
-- `version_url`: `version/20260317-2-tickets-spec.md`
-- Local file in package assets: `.tickets/spec/version/20260317-2-tickets-spec.md`
+- `version_url`: `version/20260317-4-tickets-spec.md`
+- Local file in package assets: `.tickets/spec/version/20260317-4-tickets-spec.md`
 
 ## Install
 
@@ -78,6 +78,8 @@ How to think about them:
 - `horizon`: a planning bucket such as current, next, or later
 - `precedes`: sequence edges without turning everything into a hard dependency
 - `resolution`: terminal outcome when work was completed, merged away, or dropped
+
+Completion is tracked separately from terminal outcome, and it is required on every `done` ticket. A ticket should only be treated as done when its acceptance criteria are met and its verification checks pass. If a human explicitly wants to close a ticket without those gates passing, record that override in `completion` so the exception is visible in both `ticket.md` and the status log.
 
 Default semantic mapping:
 - `feature` -> `planning.node_type=group`

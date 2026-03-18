@@ -8,6 +8,8 @@ import yaml from "yaml";
 import {
   ASSIGNMENT_MODE_VALUES,
   BASE_DIR,
+  COMPLETION_ACCEPTANCE_VALUES,
+  COMPLETION_VERIFICATION_VALUES,
   DEFAULT_CLAIM_TTL_MINUTES,
   FORMAT_VERSION,
   FORMAT_VERSION_URL,
@@ -34,6 +36,7 @@ import {
   loadTicket,
   newUuidv7,
   nowUtc,
+  parseIso,
   readTemplate,
   repoRoot,
   resolveTicketPath,
@@ -94,6 +97,102 @@ function normalizeContextItems(values) {
     return [];
   }
   return values.map((value) => String(value).trim()).filter(Boolean);
+}
+
+function hasCompletionOptions(options) {
+  return [
+    options.acceptanceCriteria,
+    options.verificationState,
+    options.overrideBy,
+    options.overrideReason,
+    options.overrideAt,
+  ].some((value) => value !== undefined);
+}
+
+function trimOptionalString(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
+function buildCompletionRecord(existingCompletion, options) {
+  const explicitCompletion = hasCompletionOptions(options);
+  if (!explicitCompletion) {
+    if (options.status !== "done") {
+      return null;
+    }
+    if (!existingCompletion || typeof existingCompletion !== "object" || Array.isArray(existingCompletion)) {
+      throw new Error("Completion data is required when --status done");
+    }
+    return existingCompletion;
+  }
+
+  if (options.status !== "done") {
+    throw new Error("Completion data is only valid when --status done");
+  }
+
+  const completion =
+    existingCompletion && typeof existingCompletion === "object" && !Array.isArray(existingCompletion)
+      ? { ...existingCompletion }
+      : {};
+
+  if (options.acceptanceCriteria !== undefined) {
+    completion.acceptance_criteria = options.acceptanceCriteria;
+  }
+  if (options.verificationState !== undefined) {
+    completion.verification = options.verificationState;
+  }
+  if (options.overrideBy !== undefined) {
+    completion.overridden_by = trimOptionalString(options.overrideBy);
+  }
+  if (options.overrideReason !== undefined) {
+    completion.override_reason = trimOptionalString(options.overrideReason);
+  }
+  if (options.overrideAt !== undefined) {
+    completion.override_at = options.overrideAt;
+  }
+
+  if (!COMPLETION_ACCEPTANCE_VALUES.includes(completion.acceptance_criteria)) {
+    throw new Error(
+      `Completion acceptance criteria must be one of: ${COMPLETION_ACCEPTANCE_VALUES.join(", ")}`,
+    );
+  }
+  if (!COMPLETION_VERIFICATION_VALUES.includes(completion.verification)) {
+    throw new Error(
+      `Completion verification state must be one of: ${COMPLETION_VERIFICATION_VALUES.join(", ")}`,
+    );
+  }
+
+  const overrideRequired =
+    completion.acceptance_criteria !== "met" || completion.verification !== "passed";
+  if (overrideRequired) {
+    if (!trimOptionalString(completion.overridden_by)) {
+      throw new Error(
+        "Human override approval is required when acceptance criteria are not met or verification did not pass",
+      );
+    }
+    if (!trimOptionalString(completion.override_reason)) {
+      throw new Error(
+        "Override reason is required when acceptance criteria are not met or verification did not pass",
+      );
+    }
+    if (completion.override_at === undefined || completion.override_at === null) {
+      completion.override_at = iso8601(nowUtc());
+    }
+    if (!parseIso(completion.override_at)) {
+      throw new Error("Override timestamp must be ISO8601 UTC");
+    }
+    completion.overridden_by = trimOptionalString(completion.overridden_by);
+    completion.override_reason = trimOptionalString(completion.override_reason);
+    return completion;
+  }
+
+  delete completion.overridden_by;
+  delete completion.override_reason;
+  delete completion.override_at;
+  return completion;
 }
 
 function groupIdSignature(groupIds = []) {
@@ -1052,18 +1151,24 @@ async function cmdInit(options) {
   const versionDir = path.join(repoBaseDir, "version");
   ensureDir(versionDir);
 
-  const currentSpecPath = path.join(versionDir, "20260317-2-tickets-spec.md");
-  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260317-2-tickets-spec.md"), apply);
+  const currentSpecPath = path.join(versionDir, "20260317-4-tickets-spec.md");
+  writeTemplateFile(currentSpecPath, path.join(".tickets", "spec", "version", "20260317-4-tickets-spec.md"), apply);
 
-  const previousCurrentSpecPath = path.join(versionDir, "20260311-tickets-spec.md");
+  const previousCurrentSpecPath = path.join(versionDir, "20260317-3-tickets-spec.md");
   writeTemplateFile(
     previousCurrentSpecPath,
-    path.join(".tickets", "spec", "version", "20260311-tickets-spec.md"),
+    path.join(".tickets", "spec", "version", "20260317-3-tickets-spec.md"),
     apply,
   );
 
-  const previousSpecPath = path.join(versionDir, "20260205-tickets-spec.md");
-  writeTemplateFile(previousSpecPath, path.join(".tickets", "spec", "version", "20260205-tickets-spec.md"), apply);
+  const previousSpecPath = path.join(versionDir, "20260317-2-tickets-spec.md");
+  writeTemplateFile(previousSpecPath, path.join(".tickets", "spec", "version", "20260317-2-tickets-spec.md"), apply);
+
+  const olderSpecPath = path.join(versionDir, "20260311-tickets-spec.md");
+  writeTemplateFile(olderSpecPath, path.join(".tickets", "spec", "version", "20260311-tickets-spec.md"), apply);
+
+  const legacySpecPath = path.join(versionDir, "20260205-tickets-spec.md");
+  writeTemplateFile(legacySpecPath, path.join(".tickets", "spec", "version", "20260205-tickets-spec.md"), apply);
 
   const proposedPath = path.join(versionDir, "PROPOSED-tickets-spec.md");
   writeTemplateFile(proposedPath, path.join(".tickets", "spec", "version", "PROPOSED-tickets-spec.md"), apply);
@@ -1114,6 +1219,8 @@ async function cmdNew(options) {
   if (planning.rank === null && planning.lane) {
     planning.rank = inferNextRank(snapshot, planning);
   }
+
+  const completion = buildCompletionRecord(null, options);
 
   const frontMatter = {
     id: ticketId,
@@ -1168,6 +1275,9 @@ async function cmdNew(options) {
     frontMatter.verification = { commands: options.verificationCommands };
   }
   frontMatter.planning = planning;
+  if (completion) {
+    frontMatter.completion = completion;
+  }
   if (options.resolution) {
     frontMatter.resolution = options.resolution;
   }
@@ -1259,12 +1369,24 @@ async function cmdStatus(options) {
   const actorId = resolveActorId(options.actorId);
   const actorType = resolveActorType(options.actorType, actorId);
   const context = normalizeContextItems(options.context);
+  const completion = buildCompletionRecord(frontMatter.completion, options);
 
   frontMatter.status = options.status;
+  if (options.status === "done" && completion) {
+    frontMatter.completion = completion;
+  } else {
+    delete frontMatter.completion;
+  }
+  if (!["done", "canceled"].includes(options.status)) {
+    delete frontMatter.resolution;
+  }
   writeTicket(ticketPath, frontMatter, body);
 
   const runId = options.runId || newUuidv7();
   const runStarted = (options.runStarted || isoBasic(nowUtc())).replaceAll(" ", "");
+  const hasCompletionOverride =
+    completion &&
+    (completion.acceptance_criteria !== "met" || completion.verification !== "passed");
   const entry = {
     version: FORMAT_VERSION,
     version_url: FORMAT_VERSION_URL,
@@ -1274,13 +1396,16 @@ async function cmdStatus(options) {
     actor_id: actorId,
     summary:
       previousStatus === options.status
-        ? `Status reaffirmed as ${options.status}`
-        : `Status changed from ${previousStatus ?? "unknown"} to ${options.status}`,
+        ? `Status reaffirmed as ${options.status}${hasCompletionOverride ? " with human override" : ""}`
+        : `Status changed from ${previousStatus ?? "unknown"} to ${options.status}${hasCompletionOverride ? " with human override" : ""}`,
     event_type: "status",
     written_by: "tickets",
   };
   if (context.length > 0) {
     entry.context = context;
+  }
+  if (options.status === "done" && completion) {
+    entry.completion = completion;
   }
 
   const logPath = path.join(path.dirname(ticketPath), "logs", `${runStarted}-${runId}.jsonl`);
@@ -1695,9 +1820,30 @@ export async function run(argv = process.argv.slice(2)) {
     .option("--horizon <horizon>")
     .option("--precedes <ticketId>", "Sequence successor ticket id", collectOption, [])
     .option("--resolution <resolution>")
+    .option("--acceptance-criteria <state>", "Completion acceptance state: met | not_met")
+    .option("--verification-state <state>", "Completion verification state: passed | failed | not_run")
+    .option("--override-by <actorId>", "Human who approved bypassing completion gates")
+    .option("--override-reason <reason>", "Why the ticket was closed without passing all completion gates")
+    .option("--override-at <timestamp>", "When the human override was approved (ISO8601 UTC)")
     .action(async (options) => {
       if (!STATUS_VALUES.includes(options.status)) {
         throw new Error(`Invalid --status. Use one of: ${STATUS_VALUES.join(", ")}`);
+      }
+      if (
+        options.acceptanceCriteria &&
+        !COMPLETION_ACCEPTANCE_VALUES.includes(options.acceptanceCriteria)
+      ) {
+        throw new Error(
+          `Invalid --acceptance-criteria. Use one of: ${COMPLETION_ACCEPTANCE_VALUES.join(", ")}`,
+        );
+      }
+      if (
+        options.verificationState &&
+        !COMPLETION_VERIFICATION_VALUES.includes(options.verificationState)
+      ) {
+        throw new Error(
+          `Invalid --verification-state. Use one of: ${COMPLETION_VERIFICATION_VALUES.join(", ")}`,
+        );
       }
       if (options.priority && !PRIORITY_VALUES.includes(options.priority)) {
         throw new Error(`Invalid --priority. Use one of: ${PRIORITY_VALUES.join(", ")}`);
@@ -1749,6 +1895,11 @@ export async function run(argv = process.argv.slice(2)) {
         horizon: options.horizon,
         precedes: options.precedes,
         resolution: options.resolution,
+        acceptanceCriteria: options.acceptanceCriteria,
+        verificationState: options.verificationState,
+        overrideBy: options.overrideBy,
+        overrideReason: options.overrideReason,
+        overrideAt: options.overrideAt,
       });
     });
 
@@ -1773,6 +1924,11 @@ export async function run(argv = process.argv.slice(2)) {
     .description("Update ticket status")
     .requiredOption("--ticket <ticket>")
     .requiredOption("--status <status>")
+    .option("--acceptance-criteria <state>", "Completion acceptance state: met | not_met")
+    .option("--verification-state <state>", "Completion verification state: passed | failed | not_run")
+    .option("--override-by <actorId>", "Human who approved bypassing completion gates")
+    .option("--override-reason <reason>", "Why the ticket was closed without passing all completion gates")
+    .option("--override-at <timestamp>", "When the human override was approved (ISO8601 UTC)")
     .option("--actor-type <actorType>")
     .option("--actor-id <actorId>")
     .option("--context <items...>")
@@ -1782,12 +1938,33 @@ export async function run(argv = process.argv.slice(2)) {
       if (!STATUS_VALUES.includes(options.status)) {
         throw new Error(`Invalid --status. Use one of: ${STATUS_VALUES.join(", ")}`);
       }
+      if (
+        options.acceptanceCriteria &&
+        !COMPLETION_ACCEPTANCE_VALUES.includes(options.acceptanceCriteria)
+      ) {
+        throw new Error(
+          `Invalid --acceptance-criteria. Use one of: ${COMPLETION_ACCEPTANCE_VALUES.join(", ")}`,
+        );
+      }
+      if (
+        options.verificationState &&
+        !COMPLETION_VERIFICATION_VALUES.includes(options.verificationState)
+      ) {
+        throw new Error(
+          `Invalid --verification-state. Use one of: ${COMPLETION_VERIFICATION_VALUES.join(", ")}`,
+        );
+      }
       if (options.actorType && !isValidActorType(options.actorType)) {
         throw new Error("Invalid --actor-type. Use one of: human, agent");
       }
       process.exitCode = await cmdStatus({
         ticket: options.ticket,
         status: options.status,
+        acceptanceCriteria: options.acceptanceCriteria,
+        verificationState: options.verificationState,
+        overrideBy: options.overrideBy,
+        overrideReason: options.overrideReason,
+        overrideAt: options.overrideAt,
         actorType: options.actorType,
         actorId: options.actorId,
         context: options.context,

@@ -3,7 +3,7 @@
 - Version: 3
 - Version URL: `version/20260317-tickets-spec.md`
 - Released: 2026-03-17
-- Status: current
+- Status: superseded
 
 ## Definition (format only)
 This version defines the ticket, repo config, and log formats used by this repo. Workflow policy and narrative guidance live in `TICKETS.md`.

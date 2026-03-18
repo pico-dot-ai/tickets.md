@@ -40,8 +40,8 @@ This repository uses a repo-native ticketing system designed for **parallel, lon
 
 ## Spec version
 - `version`: 3
-- `version_url`: `version/20260317-2-tickets-spec.md`
-- Local file: `/.tickets/spec/version/20260317-2-tickets-spec.md`
+- `version_url`: `version/20260317-4-tickets-spec.md`
+- Local file: `/.tickets/spec/version/20260317-4-tickets-spec.md`
 
 Version definitions live under `/.tickets/spec/version/`. Each spec file is self-contained and ends with a diff from the previous version.
 
@@ -148,7 +148,7 @@ Treat the list above as defaults. Agents should consult `.tickets/config.yml` be
 ---
 id: 0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5c6d
 version: 3
-version_url: "version/20260317-2-tickets-spec.md"
+version_url: "version/20260317-4-tickets-spec.md"
 title: "Feature Alpha"
 status: doing
 created_at: 2026-03-17T17:00:00Z
@@ -193,7 +193,7 @@ resolution: dropped
 Claim log example:
 
 ```json
-{"version":3,"version_url":"version/20260317-2-tickets-spec.md","ts":"2026-03-17T17:05:00Z","run_started":"20260317T170500.000Z","actor_type":"agent","actor_id":"agent:codex","summary":"Acquired claim 0191c2d3-...","event_type":"claim","written_by":"tickets","claim":{"action":"acquire","claim_id":"0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5d00","holder_id":"agent:codex","holder_type":"agent","ttl_minutes":60,"expires_at":"2026-03-17T18:05:00Z","reason":""}}
+{"version":3,"version_url":"version/20260317-4-tickets-spec.md","ts":"2026-03-17T17:05:00Z","run_started":"20260317T170500.000Z","actor_type":"agent","actor_id":"agent:codex","summary":"Acquired claim 0191c2d3-...","event_type":"claim","written_by":"tickets","claim":{"action":"acquire","claim_id":"0191c2d3-4e5f-7a8b-9c0d-1e2f3a4b5d00","holder_id":"agent:codex","holder_type":"agent","ttl_minutes":60,"expires_at":"2026-03-17T18:05:00Z","reason":""}}
 ```
 
 ## Ticket definition (`ticket.md`)
@@ -246,6 +246,23 @@ Resolution:
 resolution: completed   # completed | merged | dropped
 ```
 
+Completion:
+```yaml
+completion:
+  acceptance_criteria: met   # met | not_met
+  verification: passed       # passed | failed | not_run
+```
+
+Human-approved completion override:
+```yaml
+completion:
+  acceptance_criteria: not_met
+  verification: not_run
+  overridden_by: "@product-owner"
+  override_reason: "Human approved closing this ticket without meeting the usual done gates."
+  override_at: 2026-03-17T18:30:00Z
+```
+
 Limits:
 ```yaml
 agent_limits:
@@ -271,6 +288,9 @@ custom:
 
 Rules:
 - `resolution` is only valid on terminal tickets (`done` or `canceled`)
+- `completion` is required on tickets with `status: done`
+- if `completion.acceptance_criteria != met` or `completion.verification != passed`, `completion.overridden_by`, `completion.override_reason`, and `completion.override_at` are required
+- override fields are only valid when the usual completion gates were not fully satisfied
 - `custom` is reserved for repo-local extensions not standardized by the spec
 - other relationship views are computed by tooling and must not be persisted in `ticket.md`
 
@@ -321,6 +341,7 @@ Conditional fields:
 
 Recommended fields:
 - `changes`
+- `completion`
 - `verification`
 - `tickets_created`
 - `created_from`
@@ -376,9 +397,12 @@ Agents should:
 2. Open the assigned ticket
 3. Consult `.tickets/config.yml` for repo-local defaults and semantic overrides before interpreting planning terms or creating tickets
 4. Validate before implementation
-5. Respect `assignment.mode`, `agent_limits`, planning constraints, and active claims
-6. Use `status`, `log`, `claim`, `list`, `plan`, and `graph` through the CLI
-7. If splitting work, create child tickets with copied minimum context and log `created_from`
+5. Before setting a ticket to `done`, confirm the ticket's `## Acceptance Criteria` are met and its `## Verification` checks passed
+6. If those completion gates are not satisfied, stop and ask a human whether to keep working or explicitly override the gates
+7. When a human overrides incomplete completion gates, record that override in `ticket.md` and the status log via `npx @picoai/tickets status --status done --acceptance-criteria ... --verification-state ... --override-by ... --override-reason ...`
+8. Respect `assignment.mode`, `agent_limits`, planning constraints, and active claims
+9. Use `status`, `log`, `claim`, `list`, `plan`, and `graph` through the CLI
+10. If splitting work, create child tickets with copied minimum context and log `created_from`
 
 ## Safety and hygiene
 - Do not write secrets into tickets or logs

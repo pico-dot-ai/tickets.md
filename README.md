@@ -48,7 +48,7 @@ Key shipped files:
 - `packages/tickets/.tickets/spec/TICKETS.md`
 - `packages/tickets/.tickets/spec/AGENTS_EXAMPLE.md`
 - `packages/tickets/.tickets/spec/profile/defaults.yml`
-- `packages/tickets/.tickets/spec/version/20260317-tickets-spec.md`
+- `packages/tickets/.tickets/spec/version/20260317-4-tickets-spec.md`
 
 ## Where To Make A Change
 

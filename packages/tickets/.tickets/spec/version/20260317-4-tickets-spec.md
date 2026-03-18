@@ -1,9 +1,9 @@
 # Ticket Format Spec (Version 3)
 
 - Version: 3
-- Version URL: `version/20260317-2-tickets-spec.md`
+- Version URL: `version/20260317-4-tickets-spec.md`
 - Released: 2026-03-17
-- Status: superseded
+- Status: current
 
 ## Definition (format and derived tooling contract)
 This version defines the ticket, repo config, log, and derived planning-index contracts used by this repo. Workflow policy and narrative guidance live in `TICKETS.md`.
@@ -31,12 +31,21 @@ This version defines the ticket, repo config, log, and derived planning-index co
   - `horizon`: string or null
   - `precedes`: list of ticket IDs
 - `resolution`: `completed|merged|dropped|null`
+- `completion`: mapping
+  - `acceptance_criteria`: `met|not_met`
+  - `verification`: `passed|failed|not_run`
+  - `overridden_by`: string or null
+  - `override_reason`: string or null
+  - `override_at`: ISO 8601 UTC timestamp or null
 - `agent_limits`: mapping
 - `verification`: mapping
 - `custom`: mapping
 
 Rules:
 - `resolution` is only valid when `status` is terminal (`done` or `canceled`)
+- `completion` is required when `status` is `done`
+- if `completion.acceptance_criteria != met` or `completion.verification != passed`, `completion.overridden_by`, `completion.override_reason`, and `completion.override_at` are required
+- override fields are only valid when the usual completion gates were not fully satisfied
 - grouping is persisted only through `planning.group_ids`
 - sequencing is persisted only through `planning.precedes`
 - `planning.group_ids` may only reference `group` or `checkpoint` tickets
@@ -77,6 +86,14 @@ Repo config may override defaults and human semantic mappings, but may not redef
   - `reason`: optional string
   - `supersedes_claim_id`: optional UUIDv7 string or null
 
+### Log entry (optional)
+- `completion`: mapping on `status` events when a done decision was recorded
+  - `acceptance_criteria`: `met|not_met`
+  - `verification`: `passed|failed|not_run`
+  - `overridden_by`: string or null
+  - `override_reason`: string or null
+  - `override_at`: ISO 8601 UTC timestamp or null
+
 ### Derived planning index (`/.tickets/derived/planning-index.json`)
 - The index is derived cache state, not source of truth.
 - The file is disposable and may be rebuilt at any time by the CLI.
@@ -99,8 +116,5 @@ Repo config may override defaults and human semantic mappings, but may not redef
 - Tools should ignore unknown keys under `custom`.
 
 ## Diff from previous version
-- Added planning-default overrides for `lane` and `horizon` in `.tickets/config.yml`.
-- Added global planning validation for missing references, invalid group targets, cycles, and rank conflicts.
-- Defined the derived planning index and its invalidation requirements.
-- Clarified the operational split between `list`, `plan`, and `graph`.
-- Clarified that repo-specific semantic mappings remain authoritative only in `.tickets/config.yml`.
+- Tightened the `completion` contract so every `done` ticket must persist completion metadata.
+- Kept human-approved completion overrides as the supported path for closing tickets when usual done gates are not fully satisfied.

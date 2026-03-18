@@ -55,7 +55,7 @@ test("init creates expected structure", () => {
   assert.match(ticketsDoc, /## Core planning model/);
   assert.doesNotMatch(ticketsDoc, /@picoai\/tickets:tickets-md:start/);
   assert.equal(
-    fs.existsSync(path.join(tmp, ".tickets", "spec", "version", "20260317-2-tickets-spec.md")),
+    fs.existsSync(path.join(tmp, ".tickets", "spec", "version", "20260317-4-tickets-spec.md")),
     true,
   );
 });
@@ -89,8 +89,8 @@ test("init --apply preserves custom content and updates managed TICKETS.md + AGE
     true,
   );
   assert.equal(
-    fs.readFileSync(path.join(tmp, ".tickets", "spec", "version", "20260317-2-tickets-spec.md"), "utf8"),
-    fs.readFileSync(path.join(packageRoot, ".tickets", "spec", "version", "20260317-2-tickets-spec.md"), "utf8"),
+    fs.readFileSync(path.join(tmp, ".tickets", "spec", "version", "20260317-4-tickets-spec.md"), "utf8"),
+    fs.readFileSync(path.join(packageRoot, ".tickets", "spec", "version", "20260317-4-tickets-spec.md"), "utf8"),
   );
   assert.equal(
     fs.readFileSync(path.join(tmp, ".tickets", "spec", "version", "20260311-tickets-spec.md"), "utf8"),
@@ -452,6 +452,93 @@ test("status infers actor defaults from environment and local user", () => {
   assert.equal(entries[0].event_type, "status");
 });
 
+test("status records completion gates and human override on done tickets", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const newResult = runCli(tmp, ["new", "--title", "Test Ticket"]);
+  assert.equal(newResult.status, 0, newResult.stderr || newResult.stdout);
+  const ticketId = newResult.stdout.trim();
+
+  const statusResult = runCli(tmp, [
+    "status",
+    "--ticket",
+    ticketId,
+    "--status",
+    "done",
+    "--acceptance-criteria",
+    "not_met",
+    "--verification-state",
+    "not_run",
+    "--override-by",
+    "@kevin",
+    "--override-reason",
+    "Human requested closure despite incomplete acceptance criteria.",
+    "--override-at",
+    "2026-03-17T18:30:00Z",
+    "--run-started",
+    "20260317T183000.000Z",
+    "--run-id",
+    "done-1",
+  ]);
+  assert.equal(statusResult.status, 0, statusResult.stderr || statusResult.stdout);
+
+  const frontMatter = readTicketFrontMatter(tmp, ticketId);
+  assert.deepEqual(frontMatter.completion, {
+    acceptance_criteria: "not_met",
+    verification: "not_run",
+    overridden_by: "@kevin",
+    override_reason: "Human requested closure despite incomplete acceptance criteria.",
+    override_at: "2026-03-17T18:30:00Z",
+  });
+
+  const logPath = path.join(tmp, ".tickets", ticketId, "logs", "20260317T183000.000Z-done-1.jsonl");
+  const entries = fs
+    .readFileSync(logPath, "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+
+  assert.equal(entries[0].summary, "Status changed from todo to done with human override");
+  assert.deepEqual(entries[0].completion, frontMatter.completion);
+});
+
+test("status rejects incomplete done gates without explicit human override", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const newResult = runCli(tmp, ["new", "--title", "Test Ticket"]);
+  assert.equal(newResult.status, 0, newResult.stderr || newResult.stdout);
+  const ticketId = newResult.stdout.trim();
+
+  const statusResult = runCli(tmp, [
+    "status",
+    "--ticket",
+    ticketId,
+    "--status",
+    "done",
+    "--acceptance-criteria",
+    "not_met",
+    "--verification-state",
+    "failed",
+  ]);
+  assert.notEqual(statusResult.status, 0);
+  assert.match(statusResult.stderr, /override/i);
+});
+
+test("status rejects done without completion metadata", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const newResult = runCli(tmp, ["new", "--title", "Test Ticket"]);
+  assert.equal(newResult.status, 0, newResult.stderr || newResult.stdout);
+  const ticketId = newResult.stdout.trim();
+
+  const statusResult = runCli(tmp, ["status", "--ticket", ticketId, "--status", "done"]);
+  assert.notEqual(statusResult.status, 0);
+  assert.match(statusResult.stderr, /completion data is required/i);
+});
+
 test("machine work logs require context", () => {
   const tmp = makeTmpDir();
   assert.equal(runCli(tmp, ["init"]).status, 0);
@@ -699,6 +786,10 @@ test("plan reports rollups and ready queue with merged and dropped outcomes excl
     featureId,
     "--status",
     "done",
+    "--acceptance-criteria",
+    "met",
+    "--verification-state",
+    "passed",
     "--resolution",
     "completed",
   ]);
@@ -802,9 +893,11 @@ test("generated TICKETS and repo skill stay aligned on planning concepts", () =>
 
   assert.match(ticketsDoc, /planning\.node_type/);
   assert.match(ticketsDoc, /claims are optional advisory leases/i);
+  assert.match(ticketsDoc, /Before setting a ticket to `done`/);
   assert.match(ticketsDoc, /\.tickets\/config\.yml/);
   assert.match(skillDoc, /planning\.node_type/);
   assert.match(skillDoc, /Claims/);
+  assert.match(skillDoc, /Before setting a ticket to `done`/);
   assert.match(skillDoc, /\.tickets\/config\.yml/);
 });
 
@@ -1025,6 +1118,55 @@ test("validate reports planning topology issues", () => {
   assert.match(validate.stdout, /references missing ticket/);
   assert.match(validate.stdout, /must not contain the ticket's own id/);
   assert.match(validate.stdout, /planning\.rank conflicts with another ticket/);
+});
+
+test("validate reports invalid completion metadata", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  const ticket = runCli(tmp, ["new", "--title", "Completion metadata"]);
+  assert.equal(ticket.status, 0, ticket.stderr || ticket.stdout);
+  const ticketId = ticket.stdout.trim();
+
+  const ticketPath = path.join(tmp, ".tickets", ticketId, "ticket.md");
+  const frontMatter = readTicketFrontMatter(tmp, ticketId);
+  frontMatter.status = "done";
+  frontMatter.completion = {
+    acceptance_criteria: "not_met",
+    verification: "not_run",
+  };
+  fs.writeFileSync(ticketPath, `---\n${yaml.stringify(frontMatter).trimEnd()}\n---\n# Ticket\n\n## Description\n(fill in)\n\n## Acceptance Criteria\n- [ ] Define clear, checkable outcomes.\n\n## Verification\n- (add commands or steps)\n`);
+
+  const validate = runCli(tmp, ["validate"]);
+  assert.equal(validate.status, 1, validate.stderr || validate.stdout);
+  assert.match(validate.stdout, /completion\.overridden_by required/);
+  assert.match(validate.stdout, /completion\.override_reason required/);
+  assert.match(validate.stdout, /completion\.override_at required/);
+});
+
+test("validate reports done tickets missing completion metadata", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  const ticket = runCli(tmp, ["new", "--title", "Missing completion"]);
+  assert.equal(ticket.status, 0, ticket.stderr || ticket.stdout);
+  const ticketId = ticket.stdout.trim();
+
+  const ticketPath = path.join(tmp, ".tickets", ticketId, "ticket.md");
+  const frontMatter = readTicketFrontMatter(tmp, ticketId);
+  frontMatter.status = "done";
+  fs.writeFileSync(ticketPath, `---\n${yaml.stringify(frontMatter).trimEnd()}\n---\n# Ticket\n\n## Description\n(fill in)\n\n## Acceptance Criteria\n- [ ] Define clear, checkable outcomes.\n\n## Verification\n- (add commands or steps)\n`);
+
+  const validate = runCli(tmp, ["validate"]);
+  assert.equal(validate.status, 1, validate.stderr || validate.stdout);
+  assert.match(validate.stdout, /completion required when status is done/);
+});
+
+test("new rejects done tickets without completion metadata", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const result = runCli(tmp, ["new", "--title", "Done too early", "--status", "done"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /completion data is required/i);
 });
 
 test("derived planning index is created, refreshed, and rebuilt when stale", () => {

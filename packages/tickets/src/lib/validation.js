@@ -4,6 +4,8 @@ import path from "node:path";
 import {
   ASSIGNMENT_MODE_VALUES,
   CLAIM_ACTION_VALUES,
+  COMPLETION_ACCEPTANCE_VALUES,
+  COMPLETION_VERIFICATION_VALUES,
   PLANNING_NODE_TYPES,
   PRIORITY_VALUES,
   RESOLUTION_VALUES,
@@ -296,6 +298,124 @@ export function validateTicket(ticketPath, allFields = false) {
         ticket_path: ticketPath,
       });
     }
+  }
+
+  if ("completion" in frontMatter) {
+    const completion = frontMatter.completion;
+    if (!completion || typeof completion !== "object" || Array.isArray(completion)) {
+      issues.push({
+        severity: "error",
+        code: "COMPLETION_INVALID",
+        message: "completion must be mapping",
+        ticket_path: ticketPath,
+      });
+    } else {
+      const acceptance = completion.acceptance_criteria;
+      const verification = completion.verification;
+      const overriddenBy = completion.overridden_by;
+      const overrideReason = completion.override_reason;
+      const overrideAt = completion.override_at;
+
+      if (!COMPLETION_ACCEPTANCE_VALUES.includes(acceptance)) {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_ACCEPTANCE_INVALID",
+          message: `completion.acceptance_criteria must be one of ${COMPLETION_ACCEPTANCE_VALUES.join("|")}`,
+          ticket_path: ticketPath,
+        });
+      }
+
+      if (!COMPLETION_VERIFICATION_VALUES.includes(verification)) {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_VERIFICATION_INVALID",
+          message: `completion.verification must be one of ${COMPLETION_VERIFICATION_VALUES.join("|")}`,
+          ticket_path: ticketPath,
+        });
+      }
+
+      if (frontMatter.status !== "done") {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_STATUS_INVALID",
+          message: "completion requires status done",
+          ticket_path: ticketPath,
+        });
+      }
+
+      const overrideRequired = acceptance !== "met" || verification !== "passed";
+      const hasOverrideBy = typeof overriddenBy === "string" && overriddenBy.trim();
+      const hasOverrideReason = typeof overrideReason === "string" && overrideReason.trim();
+      const hasOverrideAt = overrideAt !== undefined && overrideAt !== null;
+
+      if (overriddenBy !== undefined && overriddenBy !== null && typeof overriddenBy !== "string") {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_OVERRIDE_BY_INVALID",
+          message: "completion.overridden_by must be string or null",
+          ticket_path: ticketPath,
+        });
+      }
+
+      if (overrideReason !== undefined && overrideReason !== null && typeof overrideReason !== "string") {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_OVERRIDE_REASON_INVALID",
+          message: "completion.override_reason must be string or null",
+          ticket_path: ticketPath,
+        });
+      }
+
+      if (hasOverrideAt && !parseIso(overrideAt)) {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_OVERRIDE_AT_INVALID",
+          message: "completion.override_at must be ISO8601 UTC or null",
+          ticket_path: ticketPath,
+        });
+      }
+
+      if (overrideRequired) {
+        if (!hasOverrideBy) {
+          issues.push({
+            severity: "error",
+            code: "COMPLETION_OVERRIDE_BY_MISSING",
+            message: "completion.overridden_by required when completion gates are not fully satisfied",
+            ticket_path: ticketPath,
+          });
+        }
+        if (!hasOverrideReason) {
+          issues.push({
+            severity: "error",
+            code: "COMPLETION_OVERRIDE_REASON_MISSING",
+            message: "completion.override_reason required when completion gates are not fully satisfied",
+            ticket_path: ticketPath,
+          });
+        }
+        if (!hasOverrideAt) {
+          issues.push({
+            severity: "error",
+            code: "COMPLETION_OVERRIDE_AT_MISSING",
+            message: "completion.override_at required when completion gates are not fully satisfied",
+            ticket_path: ticketPath,
+          });
+        }
+      } else if (hasOverrideBy || hasOverrideReason || hasOverrideAt) {
+        issues.push({
+          severity: "error",
+          code: "COMPLETION_OVERRIDE_UNEXPECTED",
+          message: "completion override fields are only valid when acceptance criteria or verification are not fully satisfied",
+          ticket_path: ticketPath,
+        });
+      }
+    }
+  } else if (frontMatter.status === "done") {
+    issues.push({
+      severity: "error",
+      code: "COMPLETION_MISSING",
+      message: "completion required when status is done",
+      ticket_path: ticketPath,
+    });
   }
 
   if ("agent_limits" in frontMatter) {
@@ -909,6 +1029,122 @@ export function validateRunLog(logPath, machineStrictDefault) {
         message: "custom must be mapping",
         log: loc,
       });
+    }
+
+    if ("completion" in entry) {
+      const completion = entry.completion;
+      if (!completion || typeof completion !== "object" || Array.isArray(completion)) {
+        issues.push({
+          severity: machineEntry ? "error" : "warning",
+          code: "LOG_COMPLETION_INVALID",
+          message: "completion must be mapping",
+          log: loc,
+        });
+      } else {
+        if (eventType !== "status") {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_EVENT_INVALID",
+            message: "completion is only valid on status events",
+            log: loc,
+          });
+        }
+
+        if (!COMPLETION_ACCEPTANCE_VALUES.includes(completion.acceptance_criteria)) {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_ACCEPTANCE_INVALID",
+            message: `completion.acceptance_criteria must be one of ${COMPLETION_ACCEPTANCE_VALUES.join("|")}`,
+            log: loc,
+          });
+        }
+
+        if (!COMPLETION_VERIFICATION_VALUES.includes(completion.verification)) {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_VERIFICATION_INVALID",
+            message: `completion.verification must be one of ${COMPLETION_VERIFICATION_VALUES.join("|")}`,
+            log: loc,
+          });
+        }
+
+        const overrideRequired =
+          completion.acceptance_criteria !== "met" || completion.verification !== "passed";
+        const hasOverrideBy =
+          typeof completion.overridden_by === "string" && completion.overridden_by.trim();
+        const hasOverrideReason =
+          typeof completion.override_reason === "string" && completion.override_reason.trim();
+        const hasOverrideAt = completion.override_at !== undefined && completion.override_at !== null;
+
+        if (
+          completion.overridden_by !== undefined &&
+          completion.overridden_by !== null &&
+          typeof completion.overridden_by !== "string"
+        ) {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_OVERRIDE_BY_INVALID",
+            message: "completion.overridden_by must be string or null",
+            log: loc,
+          });
+        }
+
+        if (
+          completion.override_reason !== undefined &&
+          completion.override_reason !== null &&
+          typeof completion.override_reason !== "string"
+        ) {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_OVERRIDE_REASON_INVALID",
+            message: "completion.override_reason must be string or null",
+            log: loc,
+          });
+        }
+
+        if (hasOverrideAt && !parseIso(completion.override_at)) {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_OVERRIDE_AT_INVALID",
+            message: "completion.override_at must be ISO8601 UTC or null",
+            log: loc,
+          });
+        }
+
+        if (overrideRequired) {
+          if (!hasOverrideBy) {
+            issues.push({
+              severity: machineEntry ? "error" : "warning",
+              code: "LOG_COMPLETION_OVERRIDE_BY_MISSING",
+              message: "completion.overridden_by required when completion gates are not fully satisfied",
+              log: loc,
+            });
+          }
+          if (!hasOverrideReason) {
+            issues.push({
+              severity: machineEntry ? "error" : "warning",
+              code: "LOG_COMPLETION_OVERRIDE_REASON_MISSING",
+              message: "completion.override_reason required when completion gates are not fully satisfied",
+              log: loc,
+            });
+          }
+          if (!hasOverrideAt) {
+            issues.push({
+              severity: machineEntry ? "error" : "warning",
+              code: "LOG_COMPLETION_OVERRIDE_AT_MISSING",
+              message: "completion.override_at required when completion gates are not fully satisfied",
+              log: loc,
+            });
+          }
+        } else if (hasOverrideBy || hasOverrideReason || hasOverrideAt) {
+          issues.push({
+            severity: machineEntry ? "error" : "warning",
+            code: "LOG_COMPLETION_OVERRIDE_UNEXPECTED",
+            message: "completion override fields are only valid when acceptance criteria or verification are not fully satisfied",
+            log: loc,
+          });
+        }
+      }
     }
   });
 
