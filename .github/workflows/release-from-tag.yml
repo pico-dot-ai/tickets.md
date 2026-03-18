@@ -1,0 +1,58 @@
+name: Release from Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate tag matches package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./packages/tickets/package.json').version")"
+
+          if [[ "${TAG_VERSION}" != "${PACKAGE_VERSION}" ]]; then
+            echo "Tag version v${TAG_VERSION} does not match packages/tickets/package.json version ${PACKAGE_VERSION}."
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          node ./scripts/extract-changelog-notes.mjs "${TAG_VERSION}" > RELEASE_NOTES.md
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TITLE="@picoai/tickets v${TAG_VERSION}"
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release edit "${TAG_NAME}" --title "${TITLE}" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "${TAG_NAME}" --verify-tag --title "${TITLE}" --notes-file RELEASE_NOTES.md
+          fi

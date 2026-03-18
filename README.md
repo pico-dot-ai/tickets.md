@@ -15,6 +15,7 @@ If you are working here, you are changing the package itself:
 - `packages/tickets/.tickets/spec`: templates, defaults, and versioned specs shipped by the package
 - `packages/tickets/README.md`: package-level documentation
 - `apps/site`: documentation site
+- `CHANGELOG.md`: package release notes used for GitHub Releases
 
 ## What The Package Installs Elsewhere
 
@@ -74,6 +75,7 @@ npm install
 npm run test
 npm run test:cli
 npm run build
+npm run release:tag
 npm run tickets -- --help
 ```
 

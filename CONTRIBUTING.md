@@ -55,7 +55,9 @@ If working from an existing ticket, keep `ticket.md` stable and append run histo
 
 - Published package provenance is tracked in `packages/tickets/release-history.json`
 - Check current release posture with `npm run release:status`
+- Keep `CHANGELOG.md` updated with a section for the published package version
 - After an npm publish succeeds, append a new release entry with the published version and commit
+- After release provenance is committed, run `npm run release:tag` to push `v<version>` and trigger GitHub Release creation
 
 ## Contract changes
 

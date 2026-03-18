@@ -27,8 +27,10 @@ This section is repo-local and should remain outside `## Ticketing Workflow` so 
 
 - Before publishing `@picoai/tickets`, run `npm run release:status` and read the result.
 - If HEAD is ahead of the latest recorded npm release and the package version has not changed, bump the package version before publishing.
+- Maintain `CHANGELOG.md` with a section for the target package version before publishing.
 - Publish only from the `packages/tickets` workspace.
 - Use an interactive terminal for publish/auth flows. Do not use token-based or non-interactive publish shortcuts when browser auth is expected.
 - If npm authentication is required, use the browser-based flow: run `npm login --auth-type=web` interactively and complete authentication in the browser.
 - Run `npm publish` interactively after authentication succeeds.
 - Only after publish succeeds, append the new published version/commit/date entry to `packages/tickets/release-history.json`.
+- After release provenance is recorded and committed, run `npm run release:tag` from the repo root to push `v<version>` and trigger GitHub Release automation.
