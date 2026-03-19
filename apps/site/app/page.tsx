@@ -207,9 +207,9 @@ planning:
       <header className="header">
         <div className="container headerInner">
           <div className="brand">
-            <div className="brandMark" aria-hidden="true">
+            <a className="brandMark" href="https://www.pico.ai" aria-label="Visit pico.ai">
               <img src="/favicon.svg" alt="" className="brandMarkImg" />
-            </div>
+            </a>
             <div className="brandText">
               <div className="brandName">TICKETS.md</div>
               <div className="brandTag">Agent-native in-repo ticketing</div>
