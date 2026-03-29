@@ -114,6 +114,17 @@ npx @picoai/tickets init [--examples] [--apply]
 - `--examples`: generate example tickets and logs that validate under the current spec
 - `--apply`: refresh managed `TICKETS.md`, the managed `AGENTS.md` workflow block, and repo skill content
 
+### `uninstall`
+
+```bash
+npx @picoai/tickets uninstall [--all] [--yes]
+```
+
+- default: remove tickets-managed workflow files while keeping ticket directories and logs under `/.tickets/<ticket-id>/`
+- `--all`: also remove ticket directories and logs for a clean reset
+- `--yes`: skip interactive confirmation prompts
+- does not remove `@picoai/tickets` from `package.json` (run your package manager uninstall command separately)
+
 ### `new`
 
 ```bash

@@ -12,14 +12,18 @@ const packageRoot = path.resolve(testDir, "..");
 const binPath = path.join(packageRoot, "bin", "tickets.js");
 
 function runCli(cwd, args, options = {}) {
-  return spawnSync(process.execPath, [binPath, ...args], {
+  const spawnOptions = {
     cwd,
     encoding: "utf8",
     env: {
       ...process.env,
       ...options.env,
     },
-  });
+  };
+  if (options.input !== undefined) {
+    spawnOptions.input = options.input;
+  }
+  return spawnSync(process.execPath, [binPath, ...args], spawnOptions);
 }
 
 function makeTmpDir() {
@@ -36,6 +40,35 @@ function readTicketFrontMatter(cwd, ticketId) {
 
 function readPlanningIndex(cwd) {
   return JSON.parse(fs.readFileSync(path.join(cwd, ".tickets", "derived", "planning-index.json"), "utf8"));
+}
+
+function setupUninstallFixture() {
+  const tmp = makeTmpDir();
+  fs.writeFileSync(path.join(tmp, "AGENTS.md"), "# Local AGENTS\n\nCustom policy.\n");
+
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+  assert.equal(runCli(tmp, ["init", "--apply"]).status, 0);
+
+  fs.writeFileSync(path.join(tmp, "TICKETS.override.md"), "# Local override\n");
+  fs.mkdirSync(path.join(tmp, ".tickets", "scratch"), { recursive: true });
+  fs.writeFileSync(path.join(tmp, ".tickets", "scratch", "temp.txt"), "scratch\n");
+
+  const newResult = runCli(tmp, ["new", "--title", "Uninstall Fixture"]);
+  assert.equal(newResult.status, 0, newResult.stderr || newResult.stdout);
+  const ticketId = newResult.stdout.trim();
+
+  const logResult = runCli(tmp, [
+    "log",
+    "--ticket",
+    ticketId,
+    "--summary",
+    "fixture",
+    "--context",
+    "seed uninstall test fixture",
+  ]);
+  assert.equal(logResult.status, 0, logResult.stderr || logResult.stdout);
+
+  return { tmp, ticketId };
 }
 
 test("init creates expected structure", () => {
@@ -208,6 +241,135 @@ test("init --apply migrates legacy H1 Ticketing Workflow block", () => {
   assert.match(agentsMd, /^## Team Customizations$/m);
   assert.match(agentsMd, /- Keep me/);
   assert.doesNotMatch(agentsMd, /^# Ticketing Workflow$/m);
+});
+
+test("uninstall prompts and cancels with no changes when first confirmation is no", () => {
+  const { tmp, ticketId } = setupUninstallFixture();
+  const ticketDir = path.join(tmp, ".tickets", ticketId);
+
+  const result = runCli(tmp, ["uninstall"], { input: "n\n" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.ok(
+    result.stdout.includes(
+      "This operation is destructive and will remove files created by @picoai/tickets from this repository. It will keep ticket directories and logs under .tickets/<ticket-id>/ by default. This action cannot be undone.\n\nProceed? [y/N]:",
+    ),
+    result.stdout,
+  );
+  assert.ok(result.stdout.includes("Canceled. No changes made.\n"), result.stdout);
+  assert.equal(fs.existsSync(path.join(tmp, "TICKETS.md")), true);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets", "config.yml")), true);
+  assert.equal(fs.existsSync(ticketDir), true);
+});
+
+test("uninstall interactive keep path removes managed files and preserves ticket directories and logs", () => {
+  const { tmp, ticketId } = setupUninstallFixture();
+  const ticketDir = path.join(tmp, ".tickets", ticketId);
+  const logsDir = path.join(ticketDir, "logs");
+
+  const result = runCli(tmp, ["uninstall"], { input: "y\nn\n" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.ok(result.stdout.includes("Remove all ticket directories and logs as well? [y/N]:"), result.stdout);
+  assert.ok(
+    result.stdout.includes(
+      "Removing all files created by @picoai/tickets from this repository except for ticket directories and logs.\n",
+    ),
+    result.stdout,
+  );
+  assert.doesNotMatch(result.stdout, /Mode:/);
+
+  assert.equal(fs.existsSync(path.join(tmp, "TICKETS.md")), false);
+  assert.equal(fs.existsSync(path.join(tmp, "AGENTS_EXAMPLE.md")), false);
+  assert.equal(fs.existsSync(path.join(tmp, "TICKETS.override.md")), false);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets", "config.yml")), false);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets", "spec")), false);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets", "skills")), false);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets", "scratch")), false);
+  assert.equal(fs.existsSync(ticketDir), true);
+  assert.equal(fs.existsSync(path.join(ticketDir, "ticket.md")), true);
+  assert.equal(fs.existsSync(logsDir), true);
+
+  const agentsPath = path.join(tmp, "AGENTS.md");
+  assert.equal(fs.existsSync(agentsPath), true);
+  const agentsMd = fs.readFileSync(agentsPath, "utf8");
+  assert.match(agentsMd, /# Local AGENTS/);
+  assert.match(agentsMd, /Custom policy\./);
+  assert.doesNotMatch(agentsMd, /^## Ticketing Workflow$/m);
+});
+
+test("uninstall interactive full path removes everything when user confirms ticket deletion", () => {
+  const { tmp } = setupUninstallFixture();
+
+  const result = runCli(tmp, ["uninstall"], { input: "y\ny\n" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.ok(
+    result.stdout.includes("Removing all files created by @picoai/tickets from this repository.\n"),
+    result.stdout,
+  );
+  assert.equal(fs.existsSync(path.join(tmp, "TICKETS.md")), false);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets")), false);
+  assert.equal(fs.existsSync(path.join(tmp, "AGENTS_EXAMPLE.md")), false);
+  assert.equal(fs.existsSync(path.join(tmp, "TICKETS.override.md")), false);
+});
+
+test("uninstall --all prompts and cancels when confirmation is no", () => {
+  const { tmp, ticketId } = setupUninstallFixture();
+
+  const result = runCli(tmp, ["uninstall", "--all"], { input: "n\n" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.ok(
+    result.stdout.includes(
+      "This operation is destructive and will remove all files created by @picoai/tickets from this repository. This action cannot be undone.\n\nProceed? [y/N]:",
+    ),
+    result.stdout,
+  );
+  assert.ok(result.stdout.includes("Canceled. No changes made.\n"), result.stdout);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets", ticketId)), true);
+});
+
+test("uninstall --all removes everything after confirmation", () => {
+  const { tmp } = setupUninstallFixture();
+
+  const result = runCli(tmp, ["uninstall", "--all"], { input: "y\n" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.ok(
+    result.stdout.includes("Removing all files created by @picoai/tickets from this repository.\n"),
+    result.stdout,
+  );
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets")), false);
+  assert.equal(fs.existsSync(path.join(tmp, "TICKETS.md")), false);
+});
+
+test("uninstall --yes paths run non-interactively", () => {
+  const keep = setupUninstallFixture();
+  const keepResult = runCli(keep.tmp, ["uninstall", "--yes"]);
+  assert.equal(keepResult.status, 0, keepResult.stderr || keepResult.stdout);
+  assert.ok(
+    keepResult.stdout.includes(
+      "Removing all files created by @picoai/tickets from this repository except for ticket directories and logs.\n",
+    ),
+    keepResult.stdout,
+  );
+  assert.equal(fs.existsSync(path.join(keep.tmp, ".tickets", keep.ticketId)), true);
+  assert.equal(fs.existsSync(path.join(keep.tmp, ".tickets", "config.yml")), false);
+
+  const wipe = setupUninstallFixture();
+  const wipeResult = runCli(wipe.tmp, ["uninstall", "--all", "--yes"]);
+  assert.equal(wipeResult.status, 0, wipeResult.stderr || wipeResult.stdout);
+  assert.ok(
+    wipeResult.stdout.includes("Removing all files created by @picoai/tickets from this repository.\n"),
+    wipeResult.stdout,
+  );
+  assert.equal(fs.existsSync(path.join(wipe.tmp, ".tickets")), false);
+});
+
+test("uninstall is idempotent", () => {
+  const { tmp } = setupUninstallFixture();
+
+  const first = runCli(tmp, ["uninstall", "--all", "--yes"]);
+  assert.equal(first.status, 0, first.stderr || first.stdout);
+  const second = runCli(tmp, ["uninstall", "--all", "--yes"]);
+  assert.equal(second.status, 0, second.stderr || second.stdout);
+  assert.equal(fs.existsSync(path.join(tmp, ".tickets")), false);
 });
 
 test("new creates ticket that validates", () => {

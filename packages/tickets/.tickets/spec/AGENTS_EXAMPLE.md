@@ -16,6 +16,8 @@ The purpose of this bootstrap is to ensure an agent loads the canonical ticketin
 - Record `completion` metadata every time a ticket is moved to `done`.
 - When a human overrides incomplete completion gates, record that override in the ticket via `npx @picoai/tickets status --status done --acceptance-criteria ... --verification-state ... --override-by ... --override-reason ...`.
 - When logging via the CLI: use `npx @picoai/tickets log --machine` so logs are strictly structured.
+- If the human asks to remove the tickets workflow from this repo, run `npx @picoai/tickets uninstall`.
+- Use `npx @picoai/tickets uninstall --all` only when the human explicitly asks to delete ticket directories and logs too.
 - Respect `assignment.mode`, `agent_limits`, active advisory claims, and repo-local defaults in `.tickets/config.yml`.
 
 ### Bootstrapping TICKETS.md

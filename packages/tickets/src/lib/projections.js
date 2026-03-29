@@ -37,6 +37,8 @@ export function renderRepoSkill(profile = loadDefaultProfile()) {
     "- Record `completion` metadata every time a ticket is moved to `done`.",
     "- When a human overrides incomplete completion gates, record the exception through `npx @picoai/tickets status --status done --acceptance-criteria ... --verification-state ... --override-by ... --override-reason ...` so `ticket.md` and the status log both reflect it.",
     "- Use `npx @picoai/tickets status`, `log`, `claim`, `plan`, and `graph` instead of editing derived state manually.",
+    "- If a human asks to remove the tickets workflow from the repo, run `npx @picoai/tickets uninstall`.",
+    "- Use `npx @picoai/tickets uninstall --all` only when the human explicitly asks to delete ticket directories and logs too.",
     "- When humans use terms like feature, phase, milestone, roadmap, or repo-specific equivalents, translate them through `.tickets/config.yml` and then call the generic CLI fields.",
     "- Respect repo overrides in `.tickets/config.yml` and any narrative guidance in `TICKETS.override.md` if present.",
     "",

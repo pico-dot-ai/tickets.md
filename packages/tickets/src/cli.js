@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import readline from "node:readline/promises";
 
 import { Command } from "commander";
 import yaml from "yaml";
@@ -804,6 +805,241 @@ function upsertAgentsSection(existingContent, templateContent) {
   }
 
   return replaceHeadingBlock(withoutLegacyMarkers, managedBlock, AGENTS_SECTION_HEADING, 2);
+}
+
+function removeHeadingBlock(content, headingText, headingLevel) {
+  const lines = normalizeContent(content).split("\n");
+  const range = findHeadingBlockRange(lines, headingText, headingLevel);
+  if (!range) {
+    return [normalizeContent(content), false];
+  }
+
+  const before = lines.slice(0, range.start).join("\n").trimEnd();
+  const after = lines.slice(range.end).join("\n").trimStart();
+  if (!before && !after) {
+    return ["", true];
+  }
+  if (!before) {
+    return [after, true];
+  }
+  if (!after) {
+    return [before, true];
+  }
+  return [`${before}\n\n${after}`, true];
+}
+
+function removeHeadingBlocks(content, headingText, headingLevel) {
+  let next = normalizeContent(content);
+  let removed = false;
+  while (true) {
+    const [updated, didRemove] = removeHeadingBlock(next, headingText, headingLevel);
+    if (!didRemove) {
+      break;
+    }
+    removed = true;
+    next = updated;
+  }
+  return [next, removed];
+}
+
+function toPosixPath(value) {
+  return String(value).replaceAll(path.sep, "/");
+}
+
+function displayRelativePath(root, targetPath, isDir = false) {
+  const relative = path.relative(root, targetPath);
+  const base = relative ? toPosixPath(relative) : ".";
+  if (isDir && !base.endsWith("/")) {
+    return `${base}/`;
+  }
+  return base;
+}
+
+function removePathWithLog(root, targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    return false;
+  }
+  const stat = fs.lstatSync(targetPath);
+  fs.rmSync(targetPath, { recursive: true, force: true });
+  process.stdout.write(`Removed ${displayRelativePath(root, targetPath, stat.isDirectory())}\n`);
+  return true;
+}
+
+function removeTicketingWorkflowFromAgents(root) {
+  const agentsMdPath = path.join(root, "AGENTS.md");
+  if (!fs.existsSync(agentsMdPath)) {
+    return;
+  }
+
+  const existing = fs.readFileSync(agentsMdPath, "utf8");
+  let next = stripManagedSection(existing, AGENTS_LEGACY_SECTION_START, AGENTS_LEGACY_SECTION_END);
+  let removed = next !== normalizeContent(existing);
+
+  let removedByHeading;
+  [next, removedByHeading] = removeHeadingBlocks(next, AGENTS_SECTION_HEADING, 2);
+  removed ||= removedByHeading;
+  [next, removedByHeading] = removeHeadingBlocks(next, AGENTS_SECTION_HEADING, 1);
+  removed ||= removedByHeading;
+
+  const normalizedNext = normalizeContent(next).trim();
+  if (!removed) {
+    return;
+  }
+
+  if (!normalizedNext) {
+    fs.rmSync(agentsMdPath, { force: true });
+    process.stdout.write("Removed AGENTS.md\n");
+    return;
+  }
+
+  fs.writeFileSync(agentsMdPath, `${normalizedNext}\n`);
+  process.stdout.write("Removed Ticketing Workflow section from AGENTS.md\n");
+}
+
+function keepOnlyTicketDirectories(root) {
+  const ticketsRoot = path.join(root, ".tickets");
+  if (!fs.existsSync(ticketsRoot) || !fs.statSync(ticketsRoot).isDirectory()) {
+    return;
+  }
+
+  const entries = fs.readdirSync(ticketsRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(ticketsRoot, entry.name);
+    if (entry.isDirectory() && fs.existsSync(path.join(entryPath, "ticket.md"))) {
+      continue;
+    }
+    removePathWithLog(root, entryPath);
+  }
+
+  const remaining = fs.readdirSync(ticketsRoot, { withFileTypes: true });
+  if (remaining.length === 0) {
+    fs.rmSync(ticketsRoot, { force: true });
+    process.stdout.write("Removed .tickets/\n");
+  }
+}
+
+function removeTicketsManagedFiles(root, removeAllTickets) {
+  removePathWithLog(root, path.join(root, "TICKETS.md"));
+  removeTicketingWorkflowFromAgents(root);
+  removePathWithLog(root, path.join(root, "AGENTS_EXAMPLE.md"));
+  removePathWithLog(root, path.join(root, "TICKETS.override.md"));
+
+  if (removeAllTickets) {
+    removePathWithLog(root, path.join(root, ".tickets"));
+  } else {
+    keepOnlyTicketDirectories(root);
+  }
+}
+
+async function promptYesNo(ask, prompt) {
+  while (true) {
+    const answer = (await ask(prompt)).trim().toLowerCase();
+    if (!answer) {
+      return false;
+    }
+    if (["y", "yes"].includes(answer)) {
+      return true;
+    }
+    if (["n", "no"].includes(answer)) {
+      return false;
+    }
+    process.stdout.write("Please enter y or n.\n");
+  }
+}
+
+async function resolveUninstallScope(options) {
+  if (options.yes) {
+    return options.all ? "all" : "keep";
+  }
+
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      if (options.all) {
+        const confirmed = await promptYesNo(
+          (prompt) => rl.question(prompt),
+          "This operation is destructive and will remove all files created by @picoai/tickets from this repository. This action cannot be undone.\n\nProceed? [y/N]:",
+        );
+        if (!confirmed) {
+          process.stdout.write("Canceled. No changes made.\n");
+          return null;
+        }
+        return "all";
+      }
+
+      const proceed = await promptYesNo(
+        (prompt) => rl.question(prompt),
+        "This operation is destructive and will remove files created by @picoai/tickets from this repository. It will keep ticket directories and logs under .tickets/<ticket-id>/ by default. This action cannot be undone.\n\nProceed? [y/N]:",
+      );
+      if (!proceed) {
+        process.stdout.write("Canceled. No changes made.\n");
+        return null;
+      }
+
+      const deleteTickets = await promptYesNo(
+        (prompt) => rl.question(prompt),
+        "Remove all ticket directories and logs as well? [y/N]:",
+      );
+      return deleteTickets ? "all" : "keep";
+    } finally {
+      rl.close();
+    }
+  }
+
+  const answers = fs.readFileSync(0, "utf8").split(/\r?\n/);
+  let cursor = 0;
+  const askFromBuffer = async (prompt) => {
+    process.stdout.write(prompt);
+    if (cursor >= answers.length) {
+      return "";
+    }
+    const value = answers[cursor];
+    cursor += 1;
+    return value ?? "";
+  };
+
+  if (options.all) {
+    const confirmed = await promptYesNo(
+      askFromBuffer,
+      "This operation is destructive and will remove all files created by @picoai/tickets from this repository. This action cannot be undone.\n\nProceed? [y/N]:",
+    );
+    if (!confirmed) {
+      process.stdout.write("Canceled. No changes made.\n");
+      return null;
+    }
+    return "all";
+  }
+
+  const proceed = await promptYesNo(
+    askFromBuffer,
+    "This operation is destructive and will remove files created by @picoai/tickets from this repository. It will keep ticket directories and logs under .tickets/<ticket-id>/ by default. This action cannot be undone.\n\nProceed? [y/N]:",
+  );
+  if (!proceed) {
+    process.stdout.write("Canceled. No changes made.\n");
+    return null;
+  }
+
+  const deleteTickets = await promptYesNo(askFromBuffer, "Remove all ticket directories and logs as well? [y/N]:");
+  return deleteTickets ? "all" : "keep";
+}
+
+async function cmdUninstall(options) {
+  const scope = await resolveUninstallScope(options);
+  if (!scope) {
+    return 0;
+  }
+
+  if (scope === "all") {
+    process.stdout.write("Removing all files created by @picoai/tickets from this repository.\n");
+    removeTicketsManagedFiles(repoRoot(), true);
+    return 0;
+  }
+
+  process.stdout.write(
+    "Removing all files created by @picoai/tickets from this repository except for ticket directories and logs.\n",
+  );
+  removeTicketsManagedFiles(repoRoot(), false);
+  return 0;
 }
 
 function applyAgentsMdSection(root, templateContent) {
@@ -2133,6 +2369,18 @@ export async function run(argv = process.argv.slice(2)) {
         release: Boolean(options.release),
         force: Boolean(options.force),
         reason: options.reason,
+      });
+    });
+
+  program
+    .command("uninstall")
+    .description("Remove @picoai/tickets managed files from this repository")
+    .option("--all", "Also remove ticket directories and logs under .tickets/")
+    .option("--yes", "Run non-interactively with confirmation accepted")
+    .action(async (options) => {
+      process.exitCode = await cmdUninstall({
+        all: Boolean(options.all),
+        yes: Boolean(options.yes),
       });
     });
 
