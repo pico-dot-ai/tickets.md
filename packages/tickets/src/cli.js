@@ -842,6 +842,38 @@ function removeHeadingBlocks(content, headingText, headingLevel) {
   return [next, removed];
 }
 
+function detectPriorInitState(root) {
+  const ticketsMdPath = path.join(root, "TICKETS.md");
+  const ticketsRoot = path.join(root, ".tickets");
+  const repoConfig = path.join(ticketsRoot, "config.yml");
+  const repoSkill = path.join(ticketsRoot, "skills", "tickets", "SKILL.md");
+  const currentSpec = path.join(root, BASE_DIR, FORMAT_VERSION_URL);
+  const hadArtifacts =
+    fs.existsSync(ticketsMdPath) || fs.existsSync(repoConfig) || fs.existsSync(repoSkill) || fs.existsSync(currentSpec);
+
+  if (!hadArtifacts) {
+    return null;
+  }
+
+  if (fs.existsSync(ticketsMdPath)) {
+    try {
+      const content = fs.readFileSync(ticketsMdPath, "utf8");
+      const versionMatch = content.match(/^\s*-\s*written_by:\s*@picoai\/tickets@([^\s]+)\s*$/m);
+      if (versionMatch?.[1] === TOOL_VERSION) {
+        return "same";
+      }
+    } catch {
+      // Best-effort heuristic only.
+    }
+  }
+
+  if (fs.existsSync(currentSpec)) {
+    return "same";
+  }
+
+  return "outdated";
+}
+
 function toPosixPath(value) {
   return String(value).replaceAll(path.sep, "/");
 }
@@ -1366,8 +1398,9 @@ function generateExampleTickets() {
 }
 
 async function cmdInit(options) {
-  ensureDir(ticketsDir());
   const root = repoRoot();
+  const priorInitState = detectPriorInitState(root);
+  ensureDir(ticketsDir());
   const repoBaseDir = path.join(root, BASE_DIR);
   ensureDir(repoBaseDir);
   const apply = Boolean(options.apply);
@@ -1414,7 +1447,13 @@ async function cmdInit(options) {
   }
 
   invalidatePlanningIndex();
-  process.stdout.write("Initialized.\n");
+  if (!apply && priorInitState === null) {
+    process.stdout.write("Repo successfully initialized; run init --apply to directly update agents.md if desired.\n");
+  } else if (!apply && priorInitState === "outdated") {
+    process.stdout.write("Repo previously initialized, but may be outdated; run init --apply to update\n");
+  } else if (!apply && priorInitState === "same") {
+    process.stdout.write("Repo already initialized with this version; run init --apply to apply updates anyway\n");
+  }
   return 0;
 }
 

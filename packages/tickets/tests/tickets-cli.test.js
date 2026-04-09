@@ -76,6 +76,10 @@ test("init creates expected structure", () => {
   const result = runCli(tmp, ["init"]);
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /Repo successfully initialized; run init --apply to directly update agents\.md if desired\./,
+  );
   assert.equal(fs.existsSync(path.join(tmp, "TICKETS.md")), true);
   assert.equal(fs.existsSync(path.join(tmp, ".tickets")), true);
   assert.equal(fs.existsSync(path.join(tmp, ".tickets", "config.yml")), true);
@@ -157,6 +161,43 @@ test("init without --apply does not modify existing TICKETS.md", () => {
   const result = runCli(tmp, ["init"]);
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(fs.readFileSync(path.join(tmp, "TICKETS.md"), "utf8"), original);
+});
+
+test("init without --apply reports already initialized at same version", () => {
+  const tmp = makeTmpDir();
+  assert.equal(runCli(tmp, ["init"]).status, 0);
+
+  const rerun = runCli(tmp, ["init"]);
+  assert.equal(rerun.status, 0, rerun.stderr || rerun.stdout);
+  assert.match(
+    rerun.stdout,
+    /Repo already initialized with this version; run init --apply to apply updates anyway/,
+  );
+});
+
+test("init without --apply reports potential outdated initialization", () => {
+  const tmp = makeTmpDir();
+  fs.mkdirSync(path.join(tmp, ".tickets", "spec", "version"), { recursive: true });
+  fs.writeFileSync(path.join(tmp, ".tickets", "config.yml"), "workflow:\n  mode: auto\n");
+  fs.writeFileSync(path.join(tmp, ".tickets", "spec", "version", "20260311-tickets-spec.md"), "legacy spec\n");
+  fs.writeFileSync(
+    path.join(tmp, "TICKETS.md"),
+    [
+      "# TICKETS.md",
+      "",
+      "<!-- @picoai/tickets:managed:start -->",
+      "- written_by: @picoai/tickets@0.4.0",
+      "<!-- @picoai/tickets:managed:end -->",
+      "",
+    ].join("\n"),
+  );
+
+  const result = runCli(tmp, ["init"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(
+    result.stdout,
+    /Repo previously initialized, but may be outdated; run init --apply to update/,
+  );
 });
 
 test("init --apply creates AGENTS.md when missing", () => {
